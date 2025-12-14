@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 60天腹肌特训中控台 (V4.3稳定版)</title>
+    <title>Fred 60天腹肌特训中控台 (V4.4 进化版)</title>
     
     <!-- 1. 样式库 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 2. 核心补丁：Babel 编译器 (让浏览器能看懂 JSX) -->
+    <!-- 2. Babel 编译器 -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- 3. 依赖映射 -->
@@ -27,6 +27,7 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -34,12 +35,11 @@
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
         <!-- 加载提示 -->
-        <div class="flex h-full items-center justify-center text-slate-400 text-sm">
-            系统正在启动...
+        <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
+            Fred Fitness Pro 正在加载...
         </div>
     </div>
 
-    <!-- 注意这里 type="text/babel" 是关键 -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo, useCallback } from 'react';
         import { createRoot } from 'react-dom/client';
@@ -47,73 +47,132 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           RefreshCw, MessageSquare, Settings, Send, Loader2, Save, 
-          ChevronLeft, History, CheckCircle2, XCircle, ArrowLeftRight
+          ChevronLeft, History, CheckCircle2, XCircle, ArrowLeftRight,
+          Sparkles, Flame, Apple
         } from 'lucide-react';
 
         const DEFAULT_API_KEY = "sk-72fba3190e5c4147bdd1b27fcab574dc";
         
-        // --- 预设替换库 ---
+        // --- 1. 扩充后的动作库 (含居家/器械/徒手替代) ---
         const BASE_PLAN = {
-          1: { title: "胸部 & 三头肌 (推力)", type: "Strength", warmup: "10分钟 椭圆机", exercises: [
-            { name: "动态伸展", sets: "5分钟", note: "肩袖预热", alternatives: [{name: "弹力带绕肩", sets: "5分钟", note: "居家替代"}] },
-            { name: "平板杠铃卧推", sets: "4组 x 10次", note: "核心动作", alternatives: [{name: "大重量俯卧撑", sets: "4组 x 力竭", note: "居家替代"}, {name: "史密斯机卧推", sets: "4组 x 12次", note: "固定器械"}] },
-            { name: "上斜哑铃卧推", sets: "4组 x 12次", note: "上胸", alternatives: [{name: "下斜俯卧撑", sets: "4组 x 15次", note: "脚垫高"}, {name: "器械上斜推胸", sets: "4组 x 12次", note: "固定器械"}] },
-            { name: "绳索下压", sets: "4组 x 15次", note: "三头肌", alternatives: [{name: "哑铃颈后臂屈伸", sets: "4组 x 15次", note: "哑铃替代"}, {name: "窄距俯卧撑", sets: "4组 x 力竭", note: "徒手替代"}] },
-            { name: "悬垂举腿", sets: "4组 x 力竭", note: "腹肌", alternatives: [{name: "仰卧抬腿", sets: "4组 x 20次", note: "平地替代"}] }
+          1: { title: "胸部 & 三头肌 (推力)", type: "Strength", warmup: "10分钟 椭圆机/快走", exercises: [
+            { name: "动态伸展", sets: "5分钟", note: "肩袖预热", alternatives: [{name: "弹力带绕肩+开合跳", sets: "5分钟", note: "居家预热"}] },
+            { name: "平板杠铃卧推", sets: "4组 x 10次", note: "核心动作", alternatives: [{name: "大重量哑铃卧推", sets: "4组 x 10次", note: "更深刺激"}, {name: "负重/弹力带俯卧撑", sets: "4组 x 力竭", note: "居家高强度"}] },
+            { name: "上斜哑铃卧推", sets: "4组 x 12次", note: "上胸饱满度", alternatives: [{name: "下斜俯卧撑(脚垫高)", sets: "4组 x 15次", note: "居家上胸"}, {name: "器械上斜推胸", sets: "4组 x 12次", note: "固定轨迹"}] },
+            { name: "绳索下压", sets: "4组 x 15次", note: "三头肌长头", alternatives: [{name: "哑铃颈后臂屈伸", sets: "4组 x 15次", note: "哑铃替代"}, {name: "窄距俯卧撑/凳上反屈伸", sets: "4组 x 力竭", note: "徒手替代"}] },
+            { name: "悬垂举腿", sets: "4组 x 力竭", note: "下腹核心", alternatives: [{name: "仰卧抬腿", sets: "4组 x 20次", note: "平地替代"}, {name: "反向卷腹", sets: "4组 x 20次", note: "护腰替代"}] }
           ]},
           2: { title: "背部 & 二头肌 (拉力)", type: "Strength", warmup: "10分钟 划船机", exercises: [
-            { name: "肩部激活", sets: "5分钟", note: "弹力带", alternatives: [{name: "徒手招财猫", sets: "5分钟", note: "无器械"}] },
-            { name: "高位下拉", sets: "4组 x 12次", note: "背阔肌", alternatives: [{name: "引体向上 (助力)", sets: "4组 x 8次", note: "进阶"}, {name: "弹力带高位下拉", sets: "4组 x 20次", note: "居家"}] },
-            { name: "坐姿划船", sets: "4组 x 12次", note: "背部厚度", alternatives: [{name: "俯身哑铃划船", sets: "4组 x 12次", note: "哑铃替代"}, {name: "澳式引体", sets: "4组 x 力竭", note: "单杠替代"}] },
-            { name: "杠铃弯举", sets: "4组 x 12次", note: "二头肌", alternatives: [{name: "哑铃交替弯举", sets: "4组 x 12次", note: "更孤立"}, {name: "弹力带弯举", sets: "4组 x 20次", note: "居家"}] },
-            { name: "平板支撑", sets: "4组 x 60秒", note: "核心", alternatives: [{name: "死虫式", sets: "4组 x 20次", note: "护腰替代"}] }
+            { name: "肩部激活", sets: "5分钟", note: "弹力带", alternatives: [{name: "徒手YTWL伸展", sets: "5分钟", note: "无器械激活"}] },
+            { name: "高位下拉", sets: "4组 x 12次", note: "背阔肌宽度", alternatives: [{name: "引体向上 (助力带)", sets: "4组 x 8次", note: "黄金动作"}, {name: "弹力带高位下拉 (挂门上)", sets: "4组 x 20次", note: "居家替代"}] },
+            { name: "坐姿划船", sets: "4组 x 12次", note: "背部厚度", alternatives: [{name: "单臂哑铃划船", sets: "4组 x 12次", note: "核心抗旋"}, {name: "澳式引体 (桌底)", sets: "4组 x 力竭", note: "居家黑科技"}] },
+            { name: "杠铃弯举", sets: "4组 x 12次", note: "二头肌整体", alternatives: [{name: "哑铃交替弯举", sets: "4组 x 12次", note: "更孤立"}, {name: "集中弯举", sets: "4组 x 15次", note: "肌峰刻画"}] },
+            { name: "平板支撑", sets: "4组 x 60秒", note: "核心抗伸展", alternatives: [{name: "死虫式", sets: "4组 x 20次", note: "护腰且高效"}, {name: "RKC平板支撑 (全力收缩)", sets: "4组 x 30秒", note: "高强度版"}] }
           ]},
           3: { title: "腿部 & 肩部 (强代谢)", type: "HighIntensity", warmup: "10分钟 单车", exercises: [
-            { name: "髋关节灵活性", sets: "5分钟", note: "必做", alternatives: [{name: "青蛙趴", sets: "5分钟", note: "拉伸"}] },
-            { name: "深蹲/腿举", sets: "5组 x 10次", note: "王牌动作", alternatives: [{name: "高脚杯深蹲", sets: "5组 x 15次", note: "哑铃替代"}, {name: "徒手深蹲跳", sets: "5组 x 20次", note: "无器械爆发力"}] },
-            { name: "哑铃推举", sets: "4组 x 12次", note: "三角肌前束", alternatives: [{name: "倒立撑/折刀俯卧撑", sets: "4组 x 10次", note: "自重高难度"}, {name: "弹力带推举", sets: "4组 x 20次", note: "居家"}] },
-            { name: "侧平举", sets: "5组 x 15次", note: "中束", alternatives: [{name: "直立划船", sets: "4组 x 12次", note: "复合动作"}] },
-            { name: "腿屈伸", sets: "3组 x 15次", note: "线条", alternatives: [{name: "箭步蹲", sets: "3组 x 20次", note: "徒手替代"}] }
+            { name: "髋关节灵活性", sets: "5分钟", note: "必做", alternatives: [{name: "世界最伟大拉伸", sets: "5分钟", note: "全身动态"}] },
+            { name: "深蹲/腿举", sets: "5组 x 10次", note: "促睾王牌", alternatives: [{name: "高脚杯深蹲", sets: "5组 x 15次", note: "哑铃替代"}, {name: "保加利亚分腿蹲", sets: "4组 x 12次", note: "虐臀腿神技(无需大重量)"}] },
+            { name: "哑铃推举", sets: "4组 x 12次", note: "三角肌前束", alternatives: [{name: "倒立撑/折刀俯卧撑", sets: "4组 x 10次", note: "自重高难度"}, {name: "阿诺德推举", sets: "4组 x 12次", note: "全面刺激"}] },
+            { name: "侧平举", sets: "5组 x 15次", note: "中束(宽肩)", alternatives: [{name: "弹力带侧平举", sets: "5组 x 20次", note: "持续张力"}, {name: "直立划船", sets: "4组 x 12次", note: "复合动作"}] },
+            { name: "腿屈伸", sets: "3组 x 15次", note: "股四线条", alternatives: [{name: "后撤箭步蹲", sets: "3组 x 20次", note: "徒手替代"}, {name: "靠墙静蹲", sets: "4组 x 60秒", note: "膝盖康复"}] }
           ]},
           4: { title: "有氧燃脂 & 腹肌", type: "Cardio", warmup: "5分钟 慢跑", exercises: [
-            { name: "卷腹", sets: "4组 x 20次", note: "上腹", alternatives: [{name: "摸膝卷腹", sets: "4组 x 20次", note: "基础"}] },
-            { name: "俄罗斯转体", sets: "4组 x 20次", note: "侧腹", alternatives: [{name: "侧支撑", sets: "4组 x 45秒", note: "静态"}] },
-            { name: "反向卷腹", sets: "4组 x 15次", note: "下腹", alternatives: [{name: "登山跑", sets: "4组 x 30秒", note: "心肺结合"}] },
-            { name: "真空腹", sets: "5组 x 30秒", note: "腹横肌", alternatives: [{name: "平板支撑", sets: "4组 x 60秒", note: "替代"}] }
+            { name: "卷腹", sets: "4组 x 20次", note: "上腹", alternatives: [{name: "摸膝卷腹", sets: "4组 x 20次", note: "基础"}, {name: "负重卷腹", sets: "4组 x 12次", note: "进阶"}] },
+            { name: "俄罗斯转体", sets: "4组 x 20次", note: "侧腹", alternatives: [{name: "侧支撑静态保持", sets: "4组 x 45秒", note: "静态核心"}, {name: "雨刷器", sets: "4组 x 12次", note: "高难度侧腹"}] },
+            { name: "反向卷腹", sets: "4组 x 15次", note: "下腹", alternatives: [{name: "登山跑", sets: "4组 x 30秒", note: "心肺结合"}, {name: "剪刀腿", sets: "4组 x 30秒", note: "持续张力"}] },
+            { name: "真空腹", sets: "5组 x 30秒", note: "腹横肌(细腰)", alternatives: [{name: "平板支撑", sets: "4组 x 60秒", note: "替代"}, {name: "腹式呼吸训练", sets: "5分钟", note: "随时可做"}] }
           ]},
           5: { title: "深度恢复 (REST)", type: "Rest", warmup: "无", exercises: [
-            { name: "泡沫轴放松", sets: "20分钟", note: "全身", alternatives: [{name: "瑜伽拉伸", sets: "20分钟", note: "柔韧性"}] },
-            { name: "温水澡", sets: "15分钟", note: "循环", alternatives: [{name: "冥想", sets: "10分钟", note: "精神恢复"}] }
+            { name: "泡沫轴放松", sets: "20分钟", note: "全身筋膜", alternatives: [{name: "瑜伽拉伸 (B站跟练)", sets: "20分钟", note: "柔韧性"}, {name: "筋膜枪定点放松", sets: "15分钟", note: "器械辅助"}] },
+            { name: "温水澡/桑拿", sets: "15分钟", note: "血液循环", alternatives: [{name: "冥想/呼吸法", sets: "10分钟", note: "降低皮质醇"}, {name: "早睡1小时", sets: "8小时+", note: "生长激素分泌"}] }
           ]},
           6: { title: "HIIT & 全身循环", type: "HIIT", warmup: "5分钟 动态", exercises: [
-            { name: "波比跳", sets: "10个 x 5组", note: "心肺", alternatives: [{name: "简易波比(不俯卧撑)", sets: "10个 x 5组", note: "降阶"}] },
-            { name: "壶铃摇摆", sets: "20个 x 4组", note: "后链", alternatives: [{name: "臀桥", sets: "20个 x 4组", note: "徒手替代"}] },
-            { name: "战绳", sets: "30秒 x 4组", note: "代谢", alternatives: [{name: "快速开合跳", sets: "45秒 x 4组", note: "徒手替代"}] },
-            { name: "核心三合一", sets: "3组", note: "腹肌", alternatives: [{name: "卷腹超级组", sets: "3组", note: "替代"}] }
+            { name: "波比跳", sets: "10个 x 5组", note: "心肺轰炸", alternatives: [{name: "简易波比(不俯卧撑)", sets: "10个 x 5组", note: "降阶"}, {name: "滑雪跳", sets: "30秒 x 5组", note: "侧向爆发力"}] },
+            { name: "壶铃摇摆", sets: "20个 x 4组", note: "后链爆发力", alternatives: [{name: "臀桥", sets: "20个 x 4组", note: "徒手替代"}, {name: "哑铃硬拉", sets: "15个 x 4组", note: "基础动作"}] },
+            { name: "战绳", sets: "30秒 x 4组", note: "上肢代谢", alternatives: [{name: "快速开合跳", sets: "45秒 x 4组", note: "徒手替代"}, {name: "拳击空击", sets: "1分钟 x 4组", note: "协调性"}] },
+            { name: "核心三合一", sets: "3组", note: "腹肌收尾", alternatives: [{name: "卷腹超级组", sets: "3组", note: "替代"}] }
           ]},
           0: { title: "户外耐力", type: "ActiveRecovery", warmup: "动态拉伸", exercises: [
-            { name: "户外骑行/爬山", sets: "60分钟+", note: "Zone 2心率", alternatives: [{name: "室内动感单车", sets: "45分钟", note: "雨天替代"}, {name: "跑步机爬坡", sets: "45分钟", note: "健身房替代"}, {name: "爬楼梯", sets: "30分钟", note: "高强度替代"}] },
-            { name: "全身拉伸", sets: "20分钟", note: "静态", alternatives: [{name: "筋膜枪放松", sets: "15分钟", note: "器械辅助"}] }
+            { name: "户外骑行/爬山", sets: "60分钟+", note: "Zone 2心率", alternatives: [{name: "室内动感单车", sets: "45分钟", note: "雨天替代"}, {name: "跑步机爬坡 (坡度10)", sets: "40分钟", note: "强力燃脂"}, {name: "爬楼梯", sets: "30分钟", note: "高强度替代"}] },
+            { name: "全身拉伸", sets: "20分钟", note: "静态", alternatives: [{name: "泡沫轴全身", sets: "20分钟", note: "替代"}] }
           ]}
         };
 
         const formatDate = (date) => date.toISOString().split('T')[0];
 
-        // --- 子组件定义 ---
+        // --- 工具函数：获取动态饮食建议 ---
+        const getDailyDietTip = (userProfile, logs, todayDate) => {
+            const yesterday = new Date(todayDate);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yStr = formatDate(yesterday);
+            const yLog = logs[yStr];
+            
+            const dayOfWeek = todayDate.getDay();
+            const isRestDay = dayOfWeek === 5; // 周五
+            const isHeavyDay = dayOfWeek === 3 || dayOfWeek === 6; // 周三腿，周六HIIT
+
+            let tip = {
+                title: "今日策略",
+                content: "均衡饮食，保持水分。",
+                color: "bg-blue-50 text-blue-700",
+                icon: <Utensils className="w-4 h-4"/>
+            };
+
+            // 1. 基于昨天的反馈
+            if (yLog) {
+                if (yLog.calories > userProfile.targetCaloriesTrain + 300) {
+                    return {
+                        title: "热量中和策略",
+                        content: "昨天热量超标，建议今天执行“轻断食”或晚餐只吃蔬菜沙拉，将碳水减半。",
+                        color: "bg-orange-50 text-orange-700",
+                        icon: <Flame className="w-4 h-4"/>
+                    };
+                }
+                if (yLog.protein < userProfile.targetProtein - 30) {
+                    return {
+                        title: "蛋白质补救",
+                        content: "昨天蛋白摄入不足，今天请额外增加一勺蛋白粉或2个蛋白，防止肌肉流失。",
+                        color: "bg-red-50 text-red-700",
+                        icon: <Dumbbell className="w-4 h-4"/>
+                    };
+                }
+            }
+
+            // 2. 基于今天的训练类型
+            if (isRestDay) {
+                tip = {
+                    title: "休息日控碳",
+                    content: "今天是深度恢复日，请严格控制主食（每餐<半拳），多吃深色蔬菜和优质脂肪。",
+                    color: "bg-green-50 text-green-700",
+                    icon: <Apple className="w-4 h-4"/>
+                };
+            } else if (isHeavyDay) {
+                tip = {
+                    title: "高消耗日充能",
+                    content: "今天训练强度大，请在练前2小时吃足碳水（米饭/红薯），练后补充快碳（香蕉/运动饮料）。",
+                    color: "bg-purple-50 text-purple-700",
+                    icon: <Flame className="w-4 h-4"/>
+                };
+            }
+
+            return tip;
+        };
+
+        // --- 组件 ---
 
         const SettingsTab = ({ apiKey, setApiKey, userProfile, saveProfile, setSetupMode }) => (
           <div className="p-6 space-y-6 animate-fade-in bg-white h-full">
-            <h2 className="text-xl font-bold flex items-center gap-2"><Settings className="w-6 h-6" /> 设置</h2>
+            <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Settings className="w-6 h-6" /> 全局设置</h2>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-500">API Key</label>
-                <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value); }} className="w-full border-b border-slate-200 py-2 outline-none font-mono text-sm" />
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">DeepSeek API Key</label>
+                <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value); }} className="w-full border-b-2 border-slate-100 py-3 outline-none font-mono text-sm focus:border-indigo-500 transition-colors" placeholder="sk-..." />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500">目标体重</label>
-                <input type="number" value={userProfile.goalWeight} onChange={e => { const p = {...userProfile, goalWeight: parseFloat(e.target.value)}; saveProfile(p); }} className="w-full border-b border-slate-200 py-2 outline-none font-mono text-sm" />
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">目标体重 (kg)</label>
+                <input type="number" value={userProfile.goalWeight} onChange={e => { const p = {...userProfile, goalWeight: parseFloat(e.target.value)}; saveProfile(p); }} className="w-full border-b-2 border-slate-100 py-3 outline-none font-mono text-sm focus:border-indigo-500 transition-colors" />
               </div>
-              <button onClick={() => setSetupMode(true)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold">重新运行初始化向导</button>
+              <button onClick={() => setSetupMode(true)} className="w-full py-4 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors">重新运行初始化向导</button>
             </div>
           </div>
         );
@@ -131,43 +190,110 @@
               } else if (!log) {
                 log = { weight: null, protein: 0, calories: 0, workoutCompleted: false };
               }
-              days.push({ date: dateStr, ...log });
+              days.push({ date: dateStr, ...log, dayObj: new Date(d) });
             }
             return days;
           }, [logs, userProfile.startDate]);
 
           const currentWeight = historyData.slice().reverse().find(d => d.weight)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
+          
+          // 计算最近7天平均值
+          const last7Days = historyData.slice(-7).filter(d => !d.isVirtual && d.calories > 0);
+          const avgCal = last7Days.length ? Math.round(last7Days.reduce((a,b)=>a+b.calories,0)/last7Days.length) : 0;
+          const avgPro = last7Days.length ? Math.round(last7Days.reduce((a,b)=>a+b.protein,0)/last7Days.length) : 0;
+
+          // 生成SVG折线图数据
+          const weightData = historyData.filter(d => d.weight > 0).slice(-14); // 取最近14个有体重记录的点
+          const minW = Math.min(...weightData.map(d=>d.weight), userProfile.goalWeight) - 1;
+          const maxW = Math.max(...weightData.map(d=>d.weight), userProfile.startWeight) + 1;
+          const svgPoints = weightData.map((d, i) => {
+             const x = (i / (weightData.length - 1 || 1)) * 100;
+             const y = 100 - ((d.weight - minW) / (maxW - minW)) * 100;
+             return `${x},${y}`;
+          }).join(" ");
+          const goalY = 100 - ((userProfile.goalWeight - minW) / (maxW - minW)) * 100;
 
           return (
-            <div className="space-y-6 animate-fade-in pb-20 p-4">
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingDown className="w-5 h-5 text-indigo-600" /> 核心指标</h2>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="p-3 bg-slate-50 rounded-xl"><div className="text-xs text-slate-400">初始</div><div className="font-mono font-bold text-slate-700">{userProfile.startWeight}</div></div>
-                  <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100"><div className="text-xs text-indigo-400">当前</div><div className="font-mono font-bold text-indigo-700 text-xl">{currentWeight}</div></div>
-                  <div className="p-3 bg-slate-50 rounded-xl"><div className="text-xs text-slate-400">目标</div><div className="font-mono font-bold text-slate-700">{userProfile.goalWeight}</div></div>
+            <div className="space-y-6 animate-fade-in pb-24 p-4">
+              
+              {/* 核心指标卡 */}
+              <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5"><TrendingDown className="w-24 h-24" /></div>
+                <div className="relative z-10">
+                    <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Trophy className="w-5 h-5 text-yellow-500" /> 减脂进度</h2>
+                    <div className="flex items-end gap-2 mb-2">
+                        <span className="text-4xl font-black text-slate-800">{currentWeight}</span>
+                        <span className="text-sm text-slate-500 mb-1">kg</span>
+                        <span className="ml-auto text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                            已减 {Math.abs(progress)} kg
+                        </span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-1000" style={{ width: `${Math.min(100, Math.max(0, (progress / (userProfile.startWeight - userProfile.goalWeight)) * 100))}%` }}></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
+                        <span>{userProfile.startWeight}kg</span>
+                        <span>目标: {userProfile.goalWeight}kg</span>
+                    </div>
                 </div>
-                <div className="mt-4 bg-gray-100 rounded-full h-2 overflow-hidden">
-                  <div className="bg-green-500 h-full transition-all duration-1000" style={{ width: `${Math.min(100, Math.max(0, (progress / (userProfile.startWeight - userProfile.goalWeight)) * 100))}%` }}></div>
-                </div>
-                <div className="text-center text-xs text-slate-400 mt-1">已完成 {Math.abs(progress)}kg 的减脂目标</div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              {/* 7日均值 */}
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                      <div className="text-xs text-slate-400 mb-1">近7天均热量</div>
+                      <div className={`text-xl font-bold ${avgCal > 2300 ? 'text-red-500' : 'text-slate-800'}`}>{avgCal} <span className="text-xs font-normal">kcal</span></div>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                      <div className="text-xs text-slate-400 mb-1">近7天均蛋白</div>
+                      <div className={`text-xl font-bold ${avgPro < 140 ? 'text-orange-500' : 'text-indigo-600'}`}>{avgPro} <span className="text-xs font-normal">g</span></div>
+                  </div>
+              </div>
+
+              {/* 体重趋势 SVG 图 */}
+              <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 趋势追踪</h2>
+                <div className="h-32 w-full relative">
+                    {/* 目标线 */}
+                    <div className="absolute w-full border-t border-dashed border-green-300" style={{top: `${goalY}%`}}></div>
+                    <div className="absolute right-0 text-[10px] text-green-500 bg-white px-1" style={{top: `${goalY-5}%`}}>目标</div>
+                    
+                    {/* 折线 */}
+                    <svg className="w-full h-full overflow-visible">
+                        <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={svgPoints} strokeLinecap="round" strokeLinejoin="round" />
+                        {weightData.map((d, i) => {
+                             const x = (i / (weightData.length - 1 || 1)) * 100;
+                             const y = 100 - ((d.weight - minW) / (maxW - minW)) * 100;
+                             return <circle key={i} cx={`${x}%`} cy={`${y}%`} r="3" className="fill-white stroke-indigo-500 stroke-2" />
+                        })}
+                    </svg>
+                </div>
+                <div className="text-center text-xs text-slate-300 mt-2">最近14次记录点</div>
+              </div>
+
+              {/* 热力图 */}
+              <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 执行热力图</h2>
-                <div className="grid grid-cols-7 gap-1">
-                  {['一','二','三','四','五','六','日'].map(d => <div key={d} className="text-center text-xs text-slate-300 font-bold mb-2">{d}</div>)}
+                <div className="grid grid-cols-7 gap-1.5">
+                  {['一','二','三','四','五','六','日'].map(d => <div key={d} className="text-center text-[10px] text-slate-300 font-bold mb-1">{d}</div>)}
                   {historyData.slice(-28).map((day, i) => {
                     let color = "bg-slate-100";
+                    let ring = "";
                     if (!day.isVirtual) {
-                      if (day.workoutCompleted && day.protein >= 120) color = "bg-green-500";
-                      else if (day.workoutCompleted) color = "bg-blue-400";
-                      else if (day.calories > 2500) color = "bg-red-400";
-                      else color = "bg-slate-200";
+                      if (day.workoutCompleted && day.protein >= userProfile.targetProtein - 20) { color = "bg-green-500"; }
+                      else if (day.workoutCompleted) { color = "bg-blue-400"; }
+                      else if (day.calories > 2500) { color = "bg-red-400"; }
+                      else { color = "bg-slate-200"; }
                     }
-                    return <div key={i} className={`aspect-square rounded-md ${color} relative group`}></div>
+                    return <div key={i} className={`aspect-square rounded-md ${color} ${ring} relative group transition-all hover:scale-110`}></div>
                   })}
+                </div>
+                <div className="flex gap-4 justify-center mt-4 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div> 完美</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-400 rounded-full"></div> 练了</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-red-400 rounded-full"></div> 爆碳</span>
+                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-200 rounded-full"></div> 休息</span>
                 </div>
               </div>
             </div>
@@ -175,10 +301,11 @@
         };
 
         const LoggerTab = ({ 
-          selectedDate, setSelectedDate, log, saveLog, userProfile, dayPlan, 
+          selectedDate, setSelectedDate, log, saveLog, userProfile, dayPlan, logs,
           foodInput, setFoodInput, handleFoodAnalysis, loading, generateDailySummary 
         }) => {
           const isToday = formatDate(selectedDate) === formatDate(new Date());
+          const dietTip = useMemo(() => getDailyDietTip(userProfile, logs, selectedDate), [logs, selectedDate]);
 
           const toggleExercise = (index) => {
             const currentSwaps = log.swaps || {};
@@ -199,30 +326,32 @@
           };
 
           return (
-            <div className="space-y-4 animate-fade-in pb-20 p-4">
-              <div className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm sticky top-0 z-20 border border-slate-100">
-                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600"><ChevronLeft className="w-5 h-5" /></button>
+            <div className="space-y-4 animate-fade-in pb-24 p-4">
+              {/* 日期导航 */}
+              <div className="flex items-center justify-between bg-white p-3 rounded-2xl shadow-sm sticky top-0 z-20 border border-slate-100 backdrop-blur-md bg-opacity-90">
+                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><ChevronLeft className="w-5 h-5" /></button>
                 <div className="text-center">
-                  <div className="font-bold text-slate-800 flex items-center justify-center gap-2">
+                  <div className="font-bold text-slate-800 flex items-center justify-center gap-2 text-lg">
                     {isToday && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
                     {selectedDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
                   </div>
-                  <div className="text-[10px] text-indigo-500 font-bold uppercase mt-0.5">{dayPlan.title}</div>
+                  <div className="text-[10px] text-indigo-500 font-bold uppercase mt-0.5 tracking-wider">{dayPlan.title}</div>
                 </div>
-                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600"><ChevronRight className="w-5 h-5" /></button>
+                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><ChevronRight className="w-5 h-5" /></button>
               </div>
 
-              {log.isVirtual && <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg flex gap-2 text-xs text-yellow-800"><AlertTriangle className="w-4 h-4 shrink-0" /><span>这天没有手动记录，系统已自动按“维持期”数据填充统计。如有需要请手动修改。</span></div>}
+              {log.isVirtual && <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl flex gap-3 text-xs text-yellow-800 items-start"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>系统自动填充了这天的数据。如需修改，请直接操作。</span></div>}
 
-              <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${log.workoutCompleted ? 'border-green-500' : 'border-indigo-500'}`}>
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-bold text-slate-900">今日训练</h3>
-                  <button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted, isVirtual: false })} className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 ${log.workoutCompleted ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
-                    {log.workoutCompleted ? <CheckCircle2 className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-slate-400"></div>}
-                    {log.workoutCompleted ? '已完成' : '点击打卡'}
+              {/* 训练卡片 */}
+              <div className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${log.workoutCompleted ? 'border-green-500 shadow-green-100' : 'border-indigo-500'}`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-900 flex items-center gap-2"><Dumbbell className="w-5 h-5 text-indigo-500" /> 今日训练</h3>
+                  <button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted, isVirtual: false })} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${log.workoutCompleted ? 'bg-green-500 text-white shadow-lg shadow-green-200 transform scale-105' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+                    {log.workoutCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300"></div>}
+                    {log.workoutCompleted ? '已完成' : '打卡'}
                   </button>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {dayPlan.exercises.map((ex, i) => {
                     const swapIndex = log.swaps ? log.swaps[i] : undefined;
                     const isSwapped = swapIndex !== undefined;
@@ -230,16 +359,19 @@
                     const hasAlts = ex.alternatives && ex.alternatives.length > 0;
 
                     return (
-                      <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-2 last:border-0">
+                      <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3 last:border-0 group">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                             <span className={`text-sm font-medium ${isSwapped ? 'text-indigo-600' : 'text-slate-700'}`}>{displayEx.name}</span>
-                             {isSwapped && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1 rounded">替代</span>}
+                             <span className={`text-sm font-bold ${isSwapped ? 'text-indigo-600' : 'text-slate-700'}`}>{displayEx.name}</span>
+                             {isSwapped && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-md font-medium">替代</span>}
                           </div>
-                          <div className="text-xs text-slate-400 font-mono mt-0.5">{displayEx.sets} · {displayEx.note}</div>
+                          <div className="text-xs text-slate-400 font-mono mt-1 flex gap-2">
+                              <span className="bg-slate-50 px-1.5 rounded">{displayEx.sets}</span>
+                              <span>{displayEx.note}</span>
+                          </div>
                         </div>
                         {hasAlts && (
-                            <button onClick={() => toggleExercise(i)} className="p-2 text-slate-300 hover:text-indigo-500 transition-colors" title="切换替代动作">
+                            <button onClick={() => toggleExercise(i)} className="p-2 text-slate-200 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all" title="切换替代动作">
                                 <ArrowLeftRight className="w-4 h-4" />
                             </button>
                         )}
@@ -249,47 +381,68 @@
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-2 mb-4 font-bold text-slate-800"><Utensils className="w-5 h-5 text-orange-500" /> 摄入与身体</div>
+              {/* 摄入与身体 */}
+              <div className="bg-white p-5 rounded-3xl shadow-sm">
+                <div className="flex items-center gap-2 mb-4 font-bold text-slate-800"><Utensils className="w-5 h-5 text-orange-500" /> 饮食与身体</div>
                 
-                <div className="bg-indigo-50 p-3 rounded-xl mb-6 border border-indigo-100">
-                  <textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="AI记录：午饭吃了一碗牛肉面，加个蛋..." className="w-full bg-white p-2 text-sm rounded-lg outline-none border border-indigo-200 focus:border-indigo-500 h-16 resize-none mb-2" />
-                  <button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 text-white py-1.5 rounded-lg text-xs font-bold flex justify-center items-center gap-1">
-                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <BrainCircuit className="w-3 h-3" />} 智能识别并添加
+                {/* 动态饮食建议卡片 */}
+                {isToday && (
+                    <div className={`mb-6 p-4 rounded-2xl flex gap-3 items-start ${dietTip.color}`}>
+                        <div className="mt-0.5 shrink-0 bg-white bg-opacity-40 p-1.5 rounded-full">{dietTip.icon}</div>
+                        <div>
+                            <div className="font-bold text-xs uppercase tracking-wider opacity-80 mb-0.5">{dietTip.title}</div>
+                            <div className="text-sm font-medium leading-tight">{dietTip.content}</div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="bg-indigo-50 p-3 rounded-2xl mb-6 border border-indigo-100 relative">
+                  <textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="记录午餐..." className="w-full bg-white p-3 text-sm rounded-xl outline-none border border-transparent focus:border-indigo-300 h-20 resize-none mb-2 placeholder-indigo-200 text-indigo-900" />
+                  <button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5 transition-colors shadow-lg shadow-indigo-200">
+                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI 识别并添加
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-slate-50 p-3 rounded-xl">
-                    <div className="text-xs text-slate-400 mb-1">蛋白质 (g)</div>
-                    <div className="flex justify-between items-end">
-                      <input type="number" min="0" value={log.protein === undefined || log.protein === null ? '' : log.protein} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-lg outline-none text-slate-800" placeholder="0" />
-                      <span className="text-[10px] text-slate-400">/ {userProfile.targetProtein}</span>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-slate-50 p-4 rounded-2xl">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">蛋白质</div>
+                    <div className="flex justify-between items-end mb-2">
+                      <input type="number" min="0" value={log.protein === undefined || log.protein === null ? '' : log.protein} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-xl outline-none text-slate-800" placeholder="0" />
+                      <span className="text-[10px] text-slate-400 mb-1">/ {userProfile.targetProtein}g</span>
                     </div>
-                    <div className="w-full bg-slate-200 h-1 mt-1 rounded-full overflow-hidden"><div className="bg-indigo-500 h-full" style={{ width: `${Math.min(100, (log.protein/userProfile.targetProtein)*100)}%` }}></div></div>
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className="bg-indigo-500 h-full transition-all duration-500" style={{ width: `${Math.min(100, (log.protein/userProfile.targetProtein)*100)}%` }}></div></div>
                   </div>
-                  <div className="bg-slate-50 p-3 rounded-xl">
-                    <div className="text-xs text-slate-400 mb-1">热量 (kcal)</div>
-                    <div className="flex justify-between items-end">
-                      <input type="number" min="0" value={log.calories === undefined || log.calories === null ? '' : log.calories} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-lg outline-none text-slate-800" placeholder="0" />
-                      <span className="text-[10px] text-slate-400">/ {dayPlan.type === 'Rest' ? userProfile.targetCaloriesRest : userProfile.targetCaloriesTrain}</span>
+                  <div className="bg-slate-50 p-4 rounded-2xl">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">热量</div>
+                    <div className="flex justify-between items-end mb-2">
+                      <input type="number" min="0" value={log.calories === undefined || log.calories === null ? '' : log.calories} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-xl outline-none text-slate-800" placeholder="0" />
+                      <span className="text-[10px] text-slate-400 mb-1">/ {dayPlan.type === 'Rest' ? userProfile.targetCaloriesRest : userProfile.targetCaloriesTrain}</span>
                     </div>
-                    <div className="w-full bg-slate-200 h-1 mt-1 rounded-full overflow-hidden"><div className={`h-full ${log.calories > 2500 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (log.calories/2200)*100)}%` }}></div></div>
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className={`h-full transition-all duration-500 ${log.calories > 2500 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (log.calories/2200)*100)}%` }}></div></div>
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-slate-100 pt-4 px-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">今日晨重</span>
-                    <div className="flex items-center gap-2">
-                      <input type="number" min="0" step="0.1" value={log.weight === undefined || log.weight === null ? '' : log.weight} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-20 bg-slate-100 p-1.5 rounded text-center font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="80.0" />
-                      <span className="text-xs text-slate-500">kg</span>
+                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Scale className="w-4 h-4 text-indigo-400"/> 今日晨重</span>
+                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 pr-3">
+                      <input type="number" min="0" step="0.1" value={log.weight === undefined || log.weight === null ? '' : log.weight} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent p-1 text-center font-bold text-slate-800 outline-none" placeholder="0.0" />
+                      <span className="text-xs text-slate-400 font-bold">kg</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {log.aiAnalysis ? <div className="bg-slate-800 p-4 rounded-2xl shadow-sm text-slate-300 text-sm italic border-l-4 border-indigo-500">"{log.aiAnalysis}"</div> : <button onClick={generateDailySummary} className="w-full py-3 border border-dashed border-slate-300 text-slate-400 rounded-xl text-xs hover:bg-slate-50 transition-colors">点击生成今日 AI 教练总结</button>}
+              {/* AI 总结按钮 (高亮升级) */}
+              {log.aiAnalysis ? (
+                  <div className="bg-slate-800 p-5 rounded-3xl shadow-lg shadow-slate-200 text-slate-300 text-sm italic border-l-4 border-indigo-500 leading-relaxed">
+                      "{log.aiAnalysis}"
+                  </div>
+              ) : (
+                  <button onClick={generateDailySummary} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:scale-[1.02] transition-transform active:scale-95">
+                      <BrainCircuit className="w-5 h-5" /> 生成今日 AI 教练总结
+                  </button>
+              )}
             </div>
           );
         };
@@ -399,22 +552,23 @@
 
           return (
             <div className="h-full flex flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
-              <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center">
+              <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md bg-opacity-80 absolute top-0 w-full">
                 <h1 className="font-black text-xl italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.PRO</span></h1>
                 <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600"><Settings className="w-5 h-5" /></button>
               </header>
-              <main className="flex-1 overflow-y-auto scrollbar-hide">
+              <main className="flex-1 overflow-y-auto scrollbar-hide pt-16">
                 {showSettings ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} setSetupMode={setSetupMode} /> : 
                 (activeTab === 'log' 
                   ? <LoggerTab 
-                      selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={currentLog} saveLog={saveLog} userProfile={userProfile} dayPlan={dayPlan} 
+                      selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={currentLog} saveLog={saveLog} userProfile={userProfile} dayPlan={dayPlan} logs={logs}
                       foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} loading={loading} generateDailySummary={generateDailySummary} 
                     /> 
                   : <HistoryTab userProfile={userProfile} logs={logs} />)}
               </main>
-              <nav className="bg-white border-t border-slate-100 flex justify-around py-2 pb-5 z-30 shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
-                <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">历史/趋势</span></button>
-                <button onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><Activity className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">今日打卡</span></button>
+              <nav className="bg-white border-t border-slate-100 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
+                <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">历史/趋势</span></button>
+                <button onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} className={`p-4 -mt-10 bg-indigo-600 rounded-full text-white shadow-xl shadow-indigo-300 transition-transform active:scale-95 border-4 border-slate-50`}><Activity className="w-6 h-6" /></button>
+                <button onClick={() => { setActiveTab('log'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><Calendar className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">今日打卡</span></button>
               </nav>
             </div>
           );
