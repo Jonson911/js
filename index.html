@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (V5.8 完美比例版)</title>
+    <title>Fred 健康营养计划 (V5.8 终极趋势修复)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -33,7 +33,7 @@
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
         <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
-            正在连接 Fred 的云端数据库...
+            正在初始化 Fred 的健康数据...
         </div>
     </div>
 
@@ -177,6 +177,7 @@
 
         const LoginScreen = ({ onLogin }) => {
             const [error, setError] = useState(null);
+            
             const handleGoogleLogin = async () => {
                 const provider = new GoogleAuthProvider();
                 try {
@@ -185,16 +186,23 @@
                     setError("登录失败: " + err.message);
                 }
             };
+
             return (
                 <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-white animate-fade-in">
                     <Activity className="w-20 h-20 text-indigo-500 mb-6" />
                     <h1 className="text-3xl font-black mb-2">FRED<span className="text-indigo-500">.FIT</span></h1>
                     <p className="text-slate-400 mb-8 text-center text-sm">云端同步 · 多端打卡 · 智能教练</p>
-                    <button onClick={handleGoogleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-colors">
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> 使用 Google 账号登录
+                    
+                    <button 
+                        onClick={handleGoogleLogin}
+                        className="w-full max-w-xs bg-white text-slate-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-colors"
+                    >
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" />
+                        使用 Google 账号登录
                     </button>
+                    
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.8 Cloud Fix + Perfect Ratio</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.8 Final Trend Fix</div>
                 </div>
             );
         };
@@ -203,16 +211,11 @@
           <div className="p-6 space-y-6 animate-fade-in bg-white h-full overflow-y-auto">
             <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Settings className="w-6 h-6" /> 账户与设置</h2>
             <div className="space-y-6">
-              {/* --- 诊断工具 --- */}
-              <div className="bg-red-50 p-4 rounded-xl space-y-2 border border-red-100">
-                  <h3 className="font-bold text-sm text-red-700 flex items-center gap-1"><AlertTriangle className="w-4 h-4"/> 数据库诊断</h3>
-                  <p className="text-[10px] text-red-600">如果其他设备看不到记录，请务必在 Firebase 控制台的 Rules 中设置为 allow read, write: if request.auth != null;</p>
-              </div>
-
               <div className="bg-slate-50 p-4 rounded-xl space-y-3">
                   <h3 className="font-bold text-sm text-slate-500">API 配置</h3>
                   <div><label className="text-xs font-bold text-slate-400 block mb-1">DeepSeek Key</label><input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value); }} className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-indigo-500" placeholder="sk-..." /></div>
               </div>
+              
               <div className="bg-slate-50 p-4 rounded-xl space-y-3">
                   <h3 className="font-bold text-sm text-slate-500">当前目标</h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -220,6 +223,7 @@
                       <div><label className="text-xs font-bold text-slate-400 block mb-1">蛋白目标 (g)</label><input type="number" value={userProfile.targetProtein} onChange={e => { const p = {...userProfile, targetProtein: parseFloat(e.target.value)}; saveProfile(p); }} className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-sm font-bold text-slate-700" /></div>
                   </div>
               </div>
+
               <div className="pt-8 border-t border-slate-100">
                   <button onClick={handleReset} className="w-full py-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-100"><RefreshCw className="w-4 h-4"/> 重置计划并重新开始</button>
                   <p className="text-xs text-slate-400 mt-2 text-center">注意：这将清空所有历史数据，让你重新设定初始体重。</p>
@@ -246,48 +250,15 @@
           const currentWeight = historyData.slice().reverse().find(d => d.weight > 0)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
           
-          const plotData = [...historyData];
-          
-          // 如果没有数据点，或者数据中断，用初始体重补全，确保连线
-          if (plotData.every(d => !d.weight)) {
-              plotData[0].weight = userProfile.startWeight;
-          }
+          // --- 趋势图核心修复 (固定参照系) ---
+          let plotData = [...historyData];
           
           const validWeights = plotData.filter(d => d.weight > 0).map(d => d.weight);
           
-          // =================================================================
-          // 📊 比例微调核心算法 (V5.8)
-          // 目标：确保微小的体重变化（如0.5kg）也能在图表上有明显的起伏，
-          // 同时避免因为包含远期的目标体重而导致近期曲线被压扁。
-          // =================================================================
-          
-          // 1. 仅基于当前可视窗口内的数据计算最大/最小值
-          let dataMin = validWeights.length ? Math.min(...validWeights) : userProfile.goalWeight;
-          let dataMax = validWeights.length ? Math.max(...validWeights) : userProfile.startWeight;
-          
-          // 2. 设定最小显示范围 (buffer)，防止波动过小时看起来像过山车
-          const MIN_RANGE = 2.5; // 至少显示 2.5kg 的范围
-          const currentRange = dataMax - dataMin;
-          
-          let minW, maxW;
-          
-          if (currentRange < MIN_RANGE) {
-              // 如果波动很小，强制扩大上下限，使线条居中且平缓
-              const center = (dataMin + dataMax) / 2;
-              minW = center - (MIN_RANGE / 2);
-              maxW = center + (MIN_RANGE / 2);
-          } else {
-              // 如果波动正常，给予上下各 10% 的呼吸空间
-              const padding = currentRange * 0.1; 
-              minW = dataMin - padding;
-              maxW = dataMax + padding;
-          }
-
-          // 3. 计算最终渲染范围
-          const range = maxW - minW;
-          
-          // 4. 计算目标线的位置 (允许它跑出图表范围，CSS会处理)
-          // 这样目标线在底部作为参考，但不会压缩数据曲线
+          // 修复：确保图表 Y 轴始终包含初始值和目标值
+          const minW = Math.min(...validWeights, userProfile.goalWeight) - 1;
+          const maxW = Math.max(...validWeights, userProfile.startWeight) + 1;
+          const range = maxW - minW || 1;
           const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
 
           const points = plotData.map((day, index) => {
@@ -295,10 +266,9 @@
               return { index, weight: day.weight };
           }).filter(p => p !== null);
 
-          // SVG 坐标生成
+          // SVG 坐标生成 (修复：使用 viewBox 0 0 100 100 自动缩放)
           const svgPoints = points.map(p => { 
              const x = (p.index / 13) * 100; 
-             // 这里确保 Y 轴坐标是基于我们优化后的 minW/maxW
              const y = 100 - ((p.weight - minW) / range) * 100; 
              return {x, y, val: p.weight}; 
           });
@@ -339,7 +309,6 @@
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 体重趋势 (近14天)</h2>
                 <div className="h-44 w-full relative px-2 select-none">
-                    {/* 目标线：通过 clamp 确保它最多停留在底部，不会消失，也不会破坏图表比例 */}
                     <div className="absolute w-full border-t border-dashed border-green-300 left-0 transition-all duration-500" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}></div>
                     <div className="absolute right-0 text-[10px] text-green-600 -mt-4 bg-white px-1 transition-all duration-500 font-bold" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}>Goal {userProfile.goalWeight}</div>
                     
@@ -350,8 +319,8 @@
                                 <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
                             </linearGradient>
                         </defs>
-                        {svgPoints.length > 1 && <path d={areaPath} fill="url(#chartGradient)" vectorEffect="non-scaling-stroke" />}
-                        {svgPoints.length > 1 && <polyline fill="none" stroke="#6366f1" strokeWidth="2" points={linePath} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+                        {svgPoints.length > 0 && <path d={areaPath} fill="url(#chartGradient)" vectorEffect="non-scaling-stroke" />}
+                        {svgPoints.length > 0 && <polyline fill="none" stroke="#6366f1" strokeWidth="2" points={linePath} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
                         
                         {svgPoints.map((p, i) => (
                              <g key={i}>
@@ -360,7 +329,7 @@
                         ))}
                     </svg>
                 </div>
-            </div>
+              </div>
 
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近7天)</h2>
@@ -416,7 +385,7 @@
               </div>
 
               {/* 错误提示条 (如果云端同步失败) */}
-              {syncError && <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex gap-3 text-xs text-red-700 items-start animate-bounce"><WifiOff className="w-4 h-4 shrink-0 mt-0.5" /><span>云端同步失败 (权限不足)。请去 Firebase 控制台 Rules 设置 "allow read, write: if true;" 临时测试。数据已保存在本地。</span></div>}
+              {syncError && <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex gap-3 text-xs text-red-700 items-start animate-bounce"><WifiOff className="w-4 h-4 shrink-0 mt-0.5" /><span>云端同步失败 (权限不足)。请去 Firebase 控制台 Rules 设置 "allow read, write: if request.auth != null;" 临时测试。数据已保存在本地。</span></div>}
 
               {/* 训练卡片 */}
               <div className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${log.workoutCompleted ? 'border-green-500 shadow-green-100' : 'border-indigo-500'}`}>
@@ -464,7 +433,7 @@
             const [foodInput, setFoodInput] = useState("");
             const [showSettings, setShowSettings] = useState(false);
             const [isSyncing, setIsSyncing] = useState(false);
-            const [syncError, setSyncError] = useState(null); // 新增同步错误状态
+            const [syncError, setSyncError] = useState(null);
 
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -493,10 +462,9 @@
             }, []);
 
             const saveToCloud = async (newProfile, newLogs) => {
-                // 本地双重保险
                 if (newLogs) localStorage.setItem('fred_logs_backup', JSON.stringify(newLogs));
                 
-                if (!user) return;
+                if (!user) { setSyncError("未登录"); return; }
                 setIsSyncing(true);
                 setSyncError(null);
                 try { 
@@ -505,10 +473,13 @@
                         logs: newLogs || logs 
                     }, { merge: true }); 
                 } catch (e) { 
-                    console.error("同步失败", e);
-                    // 只有当权限错误时才报错提示用户
+                    console.error("云端写入失败", e);
                     if (e.code === 'permission-denied') {
                         setSyncError("权限不足");
+                    } else if (e.code === 'unavailable') {
+                         setSyncError("网络断开");
+                    } else {
+                        setSyncError("写入失败");
                     }
                 } finally {
                     setIsSyncing(false);
@@ -516,7 +487,11 @@
             };
             
             const saveProfile = (newProfile) => { setUserProfile(newProfile); saveToCloud(newProfile, null); setSetupMode(false); };
-            const saveLog = (dateStr, data) => { const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; setLogs(newLogs); saveToCloud(null, newLogs); };
+            const saveLog = (dateStr, data) => { 
+                const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; 
+                setLogs(newLogs); 
+                saveToCloud(null, newLogs); 
+            };
             const getLog = (dateStr) => {
                 if (logs[dateStr]) return logs[dateStr];
                 const todayStr = formatDate(new Date());
@@ -591,9 +566,12 @@
             return (
                 <div className="h-full flex flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
                     <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md bg-opacity-80 absolute top-0 w-full">
-                        <div className="flex items-center gap-2">{user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-200"/>}<div><h1 className="font-black text-lg italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.FIT</span></h1></div></div>
+                        <div className="flex items-center gap-2">
+                            {user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-200"/>}
+                            <div><h1 className="font-black text-lg italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.FIT</span></h1></div>
+                        </div>
                         <div className="flex gap-3 items-center">
-                            <div title={isSyncing ? "正在同步..." : "云端已同步"} className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-yellow-400 animate-pulse' : (syncError ? 'bg-red-500' : 'bg-green-500')}`}></div>
+                            <div title={isSyncing ? "正在同步..." : (syncError ? '同步失败' : '云端已同步')} className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-yellow-400 animate-pulse' : (syncError ? 'bg-red-500' : 'bg-green-500')}`}></div>
                             <button onClick={() => signOut(auth)} className="text-slate-400 hover:text-red-500"><LogOut className="w-5 h-5" /></button>
                             <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600"><Settings className="w-5 h-5" /></button>
                         </div>
