@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (Cloud Pro)</title>
+    <title>Fred 健康营养计划 (V5.1 精准版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -33,7 +33,7 @@
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
         <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
-            正在连接云端数据库...
+            正在连接 Fred 的云端数据库...
         </div>
     </div>
 
@@ -44,7 +44,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -120,41 +120,52 @@
           ]}
         };
 
+        // --- 修正后的精准食谱 (V5.1) ---
+        // 目标：2200 kcal, 160g+ 蛋白质
         const MEAL_PLANS = {
-            Strength: {
+            Strength: { // 力量日：高碳水，高蛋白
                 breakfast: [
-                    {main: "全麦吐司2片 + 煎蛋2个", alt: "燕麦片50g + 蛋白粉1勺"},
-                    {main: "美式黑咖啡 + 煮玉米1根", alt: "无糖豆浆 + 全麦包子"}
+                    {main: "全麦三明治 (2片面包+2煎蛋+芝士) + 牛奶250ml", alt: "纯燕麦80g + 蛋白粉1勺 + 坚果一小把 + 鸡蛋1个", note: "约550大卡, 35g蛋白"},
+                    {main: "牛肉汉堡 (自制/少酱) + 黑咖啡", alt: "全麦馒头2个 + 无糖豆浆 + 卤牛肉100g", note: "约600大卡, 40g蛋白"}
                 ],
                 lunch: [
-                    {main: "煎鸡胸肉200g + 杂粮饭150g + 西兰花", alt: "瘦牛肉片150g + 荞麦面 + 菠菜"},
-                    {main: "虾仁炒蛋 + 红薯 + 凉拌木耳", alt: "卤牛肉 + 玉米 + 炒青菜"}
+                    {main: "煎鸡胸肉200g + 米饭200g + 炒时蔬", alt: "瘦牛肉200g + 土豆/红薯250g + 凉拌菜", note: "约750大卡, 50g蛋白"},
+                    {main: "大份鲜虾(20只) + 荞麦面 + 荷包蛋", alt: "去皮鸡腿2个 + 玉米1根 + 西兰花", note: "约700大卡, 45g蛋白"}
                 ],
                 dinner: [
-                    {main: "清蒸鱼片 + 大份生菜 (无主食)", alt: "白灼虾 + 娃娃菜汤"},
-                    {main: "鸡肉沙拉 (油醋汁)", alt: "豆腐海带汤 + 少量瘦肉"}
+                    {main: "清蒸鱼/海鲜200g + 杂粮粥 + 蔬菜", alt: "瘦肉丸子汤 (200g肉) + 少量粉丝 + 冬瓜", note: "约500大卡, 40g蛋白"},
+                    {main: "鸡肉沙拉 (200g鸡肉) + 油醋汁", alt: "煎豆腐 + 瘦肉片150g + 菌菇汤", note: "约450大卡, 35g蛋白"}
+                ],
+                snacks: [ // 关键补充
+                    {main: "训练后：蛋白粉1勺 + 香蕉1根", alt: "加餐：希腊酸奶1盒 + 蓝莓", note: "约300大卡, 25g蛋白"}
                 ]
             },
-            HighIntensity: {
+            HighIntensity: { // 高强日：中高碳水
                 breakfast: [
-                    {main: "香蕉1根 + 水煮蛋2个 + 牛奶", alt: "全麦面包 + 花生酱 + 蛋白粉"},
+                    {main: "水煮蛋3个(去1黄) + 玉米1根 + 牛奶", alt: "全麦面包2片 + 花生酱 + 蛋白粉", note: "约500大卡, 30g蛋白"},
                 ],
                 lunch: [
-                    {main: "牛肉盖饭 (少油少汁) + 蔬菜", alt: "去皮鸡腿饭 (去皮) + 蔬菜"},
+                    {main: "牛肉盖饭 (少油) + 额外加蛋", alt: "烤鱼饭 (200g鱼) + 少量米饭 + 蔬菜", note: "约700大卡, 45g蛋白"},
                 ],
                 dinner: [
-                    {main: "三文鱼/金枪鱼 + 蔬菜沙拉", alt: "瘦肉丸子汤 + 冬瓜"},
+                    {main: "三文鱼/金枪鱼刺身 + 沙拉", alt: "虾仁滑蛋 (200g虾) + 杂粮饭半碗", note: "约500大卡, 40g蛋白"},
+                ],
+                snacks: [
+                    {main: "下午加餐：全麦面包1片 + 牛肉干", alt: "练后：蛋白粉1勺 + 运动饮料", note: "约300大卡, 25g蛋白"}
                 ]
             },
-            Rest: { // 低碳日
+            Rest: { // 休息日：低碳水，高蛋白，控热量 (约1800-2000kcal)
                 breakfast: [
-                    {main: "黑咖啡 + 水煮蛋2个 (无碳水)", alt: "希腊酸奶 + 少量蓝莓"},
+                    {main: "黑咖啡 + 水煮蛋2个 + 蛋白1个 (无碳水)", alt: "无糖豆浆 + 鸡胸肉肠2根", note: "约350大卡, 25g蛋白"},
                 ],
                 lunch: [
-                    {main: "大份蔬菜沙拉 + 煎鸡胸肉 (少量红薯)", alt: "清炒时蔬 + 煎豆腐 + 瘦肉"},
+                    {main: "大份牛排沙拉 (200g牛肉, 无主食)", alt: "白灼虾300g + 烫青菜", note: "约600大卡, 50g蛋白"},
                 ],
                 dinner: [
-                    {main: "黄瓜鸡蛋汤 (无主食)", alt: "番茄菜花 (仿米饭口感)"},
+                    {main: "黄瓜鸡蛋虾仁汤 (无主食)", alt: "番茄菜花炒肉片 (仿米饭口感)", note: "约400大卡, 35g蛋白"},
+                ],
+                snacks: [
+                    {main: "饥饿时：小把坚果 / 蛋白棒", alt: "睡前：酪蛋白/牛奶", note: "约200大卡, 15g蛋白"}
                 ]
             }
         };
@@ -163,7 +174,6 @@
 
         // --- 子组件 ---
 
-        // 重新添加了 LoginScreen 组件
         const LoginScreen = ({ onLogin }) => {
             const [error, setError] = useState(null);
             
@@ -191,7 +201,7 @@
                     </button>
                     
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.0 Cloud Edition (Powered by Firebase)</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.1 Precision Nutrition Edition</div>
                 </div>
             );
         };
@@ -226,15 +236,13 @@
         const HistoryTab = ({ userProfile, logs }) => {
           const historyData = useMemo(() => {
             const start = new Date(userProfile.startDate);
-            const end = new Date(); // 今天
+            const end = new Date(); 
             const days = [];
-            // 如果开始日期是今天，确保至少显示今天
             if (start > end) start = end; 
             
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
               const dateStr = formatDate(d);
               let log = logs[dateStr];
-              // 数据补全逻辑
               if (!log) { 
                   log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; 
               }
@@ -246,9 +254,7 @@
           const currentWeight = historyData.slice().reverse().find(d => d.weight > 0)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
           
-          // 趋势图数据准备
           const weightData = historyData.filter(d => d.weight > 0);
-          // 如果数据点太少，手动补一个初始点以便画线
           if (weightData.length === 0) weightData.push({weight: userProfile.startWeight}); 
           
           const minW = Math.min(...weightData.map(d=>d.weight), userProfile.goalWeight) - 1;
@@ -262,7 +268,6 @@
           
           const goalY = 100 - ((userProfile.goalWeight - minW) / (maxW - minW)) * 100;
 
-          // 综合达标率计算
           const calculateScore = (day) => {
               if (day.isVirtual && day.date !== formatDate(new Date())) return 0;
               let score = 0;
@@ -304,7 +309,6 @@
                 <div className="text-center text-xs text-slate-300 mt-2">实时体重曲线</div>
               </div>
 
-              {/* 综合达标率柱状图 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近7天)</h2>
                 <div className="flex justify-between items-end h-32 gap-2">
@@ -341,17 +345,16 @@
         }) => {
           const isToday = formatDate(selectedDate) === formatDate(new Date());
           
-          // 获取今日食谱
           const getMealPlan = () => {
               let type = dayPlan.type;
-              if (type !== 'Strength' && type !== 'HighIntensity') type = 'Rest'; // 简化映射
+              if (type !== 'Strength' && type !== 'HighIntensity') type = 'Rest'; 
               const plan = MEAL_PLANS[type] || MEAL_PLANS['Strength'];
-              // 简单随机选择一种搭配，或者根据日期单双号显示
               const idx = selectedDate.getDate() % 2; 
               return {
                   breakfast: plan.breakfast[Math.min(idx, plan.breakfast.length-1)],
                   lunch: plan.lunch[Math.min(idx, plan.lunch.length-1)],
                   dinner: plan.dinner[Math.min(idx, plan.dinner.length-1)],
+                  snacks: plan.snacks ? plan.snacks[0] : {main: "无", alt: "无", note: ""}
               }
           };
           const dailyMeal = getMealPlan();
@@ -414,24 +417,29 @@
                 </div>
               </div>
 
-              {/* 今日主厨推荐 (新增) */}
+              {/* 今日主厨推荐 (包含加餐) */}
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-3xl shadow-sm border border-orange-100">
-                  <div className="flex items-center gap-2 mb-3 font-bold text-orange-800"><ChefHat className="w-5 h-5"/> 今日主厨推荐 ({dayPlan.type === 'Rest' ? '低碳恢复餐' : '增肌充能餐'})</div>
+                  <div className="flex items-center gap-2 mb-3 font-bold text-orange-800"><ChefHat className="w-5 h-5"/> 主厨推荐 ({dayPlan.type === 'Rest' ? '低碳恢复' : '增肌充能'})</div>
                   <div className="space-y-3">
                       <div className="bg-white bg-opacity-60 p-3 rounded-xl">
                           <div className="text-[10px] text-orange-400 font-bold uppercase mb-1">早餐 Breakfast</div>
                           <div className="text-sm font-medium text-slate-700">{dailyMeal.breakfast.main}</div>
-                          <div className="text-xs text-slate-400 mt-1">备选: {dailyMeal.breakfast.alt}</div>
+                          <div className="text-[10px] text-slate-400 mt-1">{dailyMeal.breakfast.note}</div>
                       </div>
                       <div className="bg-white bg-opacity-60 p-3 rounded-xl">
                           <div className="text-[10px] text-orange-400 font-bold uppercase mb-1">午餐 Lunch</div>
                           <div className="text-sm font-medium text-slate-700">{dailyMeal.lunch.main}</div>
-                          <div className="text-xs text-slate-400 mt-1">备选: {dailyMeal.lunch.alt}</div>
+                          <div className="text-[10px] text-slate-400 mt-1">{dailyMeal.lunch.note}</div>
                       </div>
                       <div className="bg-white bg-opacity-60 p-3 rounded-xl">
                           <div className="text-[10px] text-orange-400 font-bold uppercase mb-1">晚餐 Dinner</div>
                           <div className="text-sm font-medium text-slate-700">{dailyMeal.dinner.main}</div>
-                          <div className="text-xs text-slate-400 mt-1">备选: {dailyMeal.dinner.alt}</div>
+                          <div className="text-[10px] text-slate-400 mt-1">{dailyMeal.dinner.note}</div>
+                      </div>
+                      <div className="bg-indigo-50 bg-opacity-80 p-3 rounded-xl border border-indigo-100">
+                          <div className="flex items-center gap-1 text-[10px] text-indigo-500 font-bold uppercase mb-1"><Coffee className="w-3 h-3"/> 关键加餐 Snack</div>
+                          <div className="text-sm font-bold text-indigo-900">{dailyMeal.snacks.main}</div>
+                          <div className="text-[10px] text-indigo-400 mt-1">{dailyMeal.snacks.note}</div>
                       </div>
                   </div>
               </div>
@@ -531,16 +539,14 @@
                 return { weight: null, protein: 0, calories: 0, workoutCompleted: false, foodLog: [], swaps: {} };
             };
 
-            // 重置功能
             const handleReset = async () => {
                 if (!confirm("确定要重置所有数据吗？这将不可恢复。")) return;
                 if (!user) return;
-                // 清空本地和云端日志，重置开始日期为今天
                 const newProfile = { ...userProfile, startDate: formatDate(new Date()) };
                 const newLogs = {};
                 setUserProfile(newProfile);
                 setLogs(newLogs);
-                setSetupMode(true); // 进入初始化向导
+                setSetupMode(true); 
                 setShowSettings(false);
                 
                 try { 
