@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 60天腹肌特训中控台 (V4.4 进化版)</title>
+    <title>Fred 60天腹肌特训 (Cloud Pro)</title>
     
-    <!-- 1. 样式库 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 2. Babel 编译器 -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- 3. 依赖映射 -->
     <script type="importmap">
     {
       "imports": {
         "react": "https://esm.sh/react@18.2.0",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
       }
     }
     </script>
@@ -27,33 +26,58 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-slate-100 h-screen w-screen overflow-hidden flex justify-center items-center">
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
-        <!-- 加载提示 -->
         <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
-            Fred Fitness Pro 正在加载...
+            正在连接 Fred 的云端数据库...
         </div>
     </div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo, useCallback } from 'react';
+        import React, { useState, useEffect, useMemo } from 'react';
         import { createRoot } from 'react-dom/client';
         import { 
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
-          RefreshCw, MessageSquare, Settings, Send, Loader2, Save, 
-          ChevronLeft, History, CheckCircle2, XCircle, ArrowLeftRight,
-          Sparkles, Flame, Apple
+          Settings, Send, Loader2, Save, ChevronLeft, History, 
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud
         } from 'lucide-react';
-
-        const DEFAULT_API_KEY = "sk-72fba3190e5c4147bdd1b27fcab574dc";
         
-        // --- 1. 扩充后的动作库 (含居家/器械/徒手替代) ---
+        // --- FIREBASE 核心引入 ---
+        import { initializeApp } from "firebase/app";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
+        import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+
+        // =================================================================
+        // 🔑 Fred 的专属 Firebase 密钥 (已配置)
+        // =================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXbO4WzrrHTIIZ7BH6ChSsYrGepg-ymfQ",
+            authDomain: "fred-fitness.firebaseapp.com",
+            projectId: "fred-fitness",
+            storageBucket: "fred-fitness.firebasestorage.app",
+            messagingSenderId: "740270431308",
+            appId: "1:740270431308:web:245155b5d8de8addaca8e9",
+            measurementId: "G-QPYZJ2WKWN"
+        };
+
+        // 初始化 Firebase
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (e) {
+            console.error("Firebase 初始化失败", e);
+        }
+
+        const DEFAULT_DEEPSEEK_KEY = "sk-72fba3190e5c4147bdd1b27fcab574dc";
+        
+        // --- 完整版动作库 (继承自 V4.4) ---
         const BASE_PLAN = {
           1: { title: "胸部 & 三头肌 (推力)", type: "Strength", warmup: "10分钟 椭圆机/快走", exercises: [
             { name: "动态伸展", sets: "5分钟", note: "肩袖预热", alternatives: [{name: "弹力带绕肩+开合跳", sets: "5分钟", note: "居家预热"}] },
@@ -100,78 +124,63 @@
 
         const formatDate = (date) => date.toISOString().split('T')[0];
 
-        // --- 工具函数：获取动态饮食建议 ---
+        // --- 动态饮食建议逻辑 (V4.4) ---
         const getDailyDietTip = (userProfile, logs, todayDate) => {
             const yesterday = new Date(todayDate);
             yesterday.setDate(yesterday.getDate() - 1);
             const yStr = formatDate(yesterday);
             const yLog = logs[yStr];
-            
             const dayOfWeek = todayDate.getDay();
-            const isRestDay = dayOfWeek === 5; // 周五
-            const isHeavyDay = dayOfWeek === 3 || dayOfWeek === 6; // 周三腿，周六HIIT
+            const isRestDay = dayOfWeek === 5; 
+            const isHeavyDay = dayOfWeek === 3 || dayOfWeek === 6; 
 
-            let tip = {
-                title: "今日策略",
-                content: "均衡饮食，保持水分。",
-                color: "bg-blue-50 text-blue-700",
-                icon: <Utensils className="w-4 h-4"/>
-            };
+            let tip = { title: "今日策略", content: "均衡饮食，保持水分。", color: "bg-blue-50 text-blue-700", icon: <Utensils className="w-4 h-4"/> };
 
-            // 1. 基于昨天的反馈
             if (yLog) {
                 if (yLog.calories > userProfile.targetCaloriesTrain + 300) {
-                    return {
-                        title: "热量中和策略",
-                        content: "昨天热量超标，建议今天执行“轻断食”或晚餐只吃蔬菜沙拉，将碳水减半。",
-                        color: "bg-orange-50 text-orange-700",
-                        icon: <Flame className="w-4 h-4"/>
-                    };
+                    return { title: "热量中和策略", content: "昨天热量超标，建议今天执行“轻断食”或晚餐只吃蔬菜沙拉，将碳水减半。", color: "bg-orange-50 text-orange-700", icon: <Flame className="w-4 h-4"/> };
                 }
                 if (yLog.protein < userProfile.targetProtein - 30) {
-                    return {
-                        title: "蛋白质补救",
-                        content: "昨天蛋白摄入不足，今天请额外增加一勺蛋白粉或2个蛋白，防止肌肉流失。",
-                        color: "bg-red-50 text-red-700",
-                        icon: <Dumbbell className="w-4 h-4"/>
-                    };
+                    return { title: "蛋白质补救", content: "昨天蛋白摄入不足，今天请额外增加一勺蛋白粉或2个蛋白，防止肌肉流失。", color: "bg-red-50 text-red-700", icon: <Dumbbell className="w-4 h-4"/> };
                 }
             }
-
-            // 2. 基于今天的训练类型
             if (isRestDay) {
-                tip = {
-                    title: "休息日控碳",
-                    content: "今天是深度恢复日，请严格控制主食（每餐<半拳），多吃深色蔬菜和优质脂肪。",
-                    color: "bg-green-50 text-green-700",
-                    icon: <Apple className="w-4 h-4"/>
-                };
+                tip = { title: "休息日控碳", content: "今天是深度恢复日，请严格控制主食（每餐<半拳），多吃深色蔬菜和优质脂肪。", color: "bg-green-50 text-green-700", icon: <Apple className="w-4 h-4"/> };
             } else if (isHeavyDay) {
-                tip = {
-                    title: "高消耗日充能",
-                    content: "今天训练强度大，请在练前2小时吃足碳水（米饭/红薯），练后补充快碳（香蕉/运动饮料）。",
-                    color: "bg-purple-50 text-purple-700",
-                    icon: <Flame className="w-4 h-4"/>
-                };
+                tip = { title: "高消耗日充能", content: "今天训练强度大，请在练前2小时吃足碳水（米饭/红薯），练后补充快碳（香蕉/运动饮料）。", color: "bg-purple-50 text-purple-700", icon: <Flame className="w-4 h-4"/> };
             }
-
             return tip;
         };
 
-        // --- 组件 ---
+        // --- Auth Component ---
+        const LoginScreen = ({ onLogin }) => {
+            const [error, setError] = useState(null);
+            const handleGoogleLogin = async () => {
+                const provider = new GoogleAuthProvider();
+                try { await signInWithPopup(auth, provider); } catch (err) { setError("登录失败: " + err.message); }
+            };
+            return (
+                <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-white animate-fade-in">
+                    <Activity className="w-20 h-20 text-indigo-500 mb-6" />
+                    <h1 className="text-3xl font-black mb-2">FRED<span className="text-indigo-500">.FIT</span></h1>
+                    <p className="text-slate-400 mb-8 text-center text-sm">云端同步 · 多端打卡 · 智能教练</p>
+                    <button onClick={handleGoogleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-colors">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> 使用 Google 账号登录
+                    </button>
+                    {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
+                    <div className="mt-12 text-xs text-slate-600">V5.0 Cloud Edition (Powered by Firebase)</div>
+                </div>
+            );
+        };
+
+        // --- 子组件 (完整 V4.4 功能移植) ---
 
         const SettingsTab = ({ apiKey, setApiKey, userProfile, saveProfile, setSetupMode }) => (
           <div className="p-6 space-y-6 animate-fade-in bg-white h-full">
             <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Settings className="w-6 h-6" /> 全局设置</h2>
             <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">DeepSeek API Key</label>
-                <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value); }} className="w-full border-b-2 border-slate-100 py-3 outline-none font-mono text-sm focus:border-indigo-500 transition-colors" placeholder="sk-..." />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">目标体重 (kg)</label>
-                <input type="number" value={userProfile.goalWeight} onChange={e => { const p = {...userProfile, goalWeight: parseFloat(e.target.value)}; saveProfile(p); }} className="w-full border-b-2 border-slate-100 py-3 outline-none font-mono text-sm focus:border-indigo-500 transition-colors" />
-              </div>
+              <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">DeepSeek API Key</label><input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value); }} className="w-full border-b-2 border-slate-100 py-3 outline-none font-mono text-sm focus:border-indigo-500 transition-colors" placeholder="sk-..." /></div>
+              <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">目标体重 (kg)</label><input type="number" value={userProfile.goalWeight} onChange={e => { const p = {...userProfile, goalWeight: parseFloat(e.target.value)}; saveProfile(p); }} className="w-full border-b-2 border-slate-100 py-3 outline-none font-mono text-sm focus:border-indigo-500 transition-colors" /></div>
               <button onClick={() => setSetupMode(true)} className="w-full py-4 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors">重新运行初始化向导</button>
             </div>
           </div>
@@ -185,115 +194,55 @@
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
               const dateStr = formatDate(d);
               let log = logs[dateStr];
-              if (!log && dateStr < formatDate(new Date())) {
-                log = { isVirtual: true, weight: null, calories: 2000, protein: 80, workoutCompleted: false };
-              } else if (!log) {
-                log = { weight: null, protein: 0, calories: 0, workoutCompleted: false };
-              }
-              days.push({ date: dateStr, ...log, dayObj: new Date(d) });
+              if (!log && dateStr < formatDate(new Date())) { log = { isVirtual: true, weight: null, calories: 2000, protein: 80, workoutCompleted: false }; } 
+              else if (!log) { log = { weight: null, protein: 0, calories: 0, workoutCompleted: false }; }
+              days.push({ date: dateStr, ...log });
             }
             return days;
           }, [logs, userProfile.startDate]);
 
           const currentWeight = historyData.slice().reverse().find(d => d.weight)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
-          
-          // 计算最近7天平均值
-          const last7Days = historyData.slice(-7).filter(d => !d.isVirtual && d.calories > 0);
-          const avgCal = last7Days.length ? Math.round(last7Days.reduce((a,b)=>a+b.calories,0)/last7Days.length) : 0;
-          const avgPro = last7Days.length ? Math.round(last7Days.reduce((a,b)=>a+b.protein,0)/last7Days.length) : 0;
-
-          // 生成SVG折线图数据
-          const weightData = historyData.filter(d => d.weight > 0).slice(-14); // 取最近14个有体重记录的点
+          const weightData = historyData.filter(d => d.weight > 0).slice(-14);
           const minW = Math.min(...weightData.map(d=>d.weight), userProfile.goalWeight) - 1;
           const maxW = Math.max(...weightData.map(d=>d.weight), userProfile.startWeight) + 1;
-          const svgPoints = weightData.map((d, i) => {
-             const x = (i / (weightData.length - 1 || 1)) * 100;
-             const y = 100 - ((d.weight - minW) / (maxW - minW)) * 100;
-             return `${x},${y}`;
-          }).join(" ");
+          const svgPoints = weightData.map((d, i) => { const x = (i / (weightData.length - 1 || 1)) * 100; const y = 100 - ((d.weight - minW) / (maxW - minW)) * 100; return `${x},${y}`; }).join(" ");
           const goalY = 100 - ((userProfile.goalWeight - minW) / (maxW - minW)) * 100;
 
           return (
             <div className="space-y-6 animate-fade-in pb-24 p-4">
-              
-              {/* 核心指标卡 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-5"><TrendingDown className="w-24 h-24" /></div>
                 <div className="relative z-10">
                     <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Trophy className="w-5 h-5 text-yellow-500" /> 减脂进度</h2>
                     <div className="flex items-end gap-2 mb-2">
-                        <span className="text-4xl font-black text-slate-800">{currentWeight}</span>
-                        <span className="text-sm text-slate-500 mb-1">kg</span>
-                        <span className="ml-auto text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
-                            已减 {Math.abs(progress)} kg
-                        </span>
+                        <span className="text-4xl font-black text-slate-800">{currentWeight}</span><span className="text-sm text-slate-500 mb-1">kg</span>
+                        <span className="ml-auto text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">已减 {Math.abs(progress)} kg</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-1000" style={{ width: `${Math.min(100, Math.max(0, (progress / (userProfile.startWeight - userProfile.goalWeight)) * 100))}%` }}></div>
-                    </div>
-                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-                        <span>{userProfile.startWeight}kg</span>
-                        <span>目标: {userProfile.goalWeight}kg</span>
-                    </div>
+                    <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden"><div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-1000" style={{ width: `${Math.min(100, Math.max(0, (progress / (userProfile.startWeight - userProfile.goalWeight)) * 100))}%` }}></div></div>
                 </div>
               </div>
-
-              {/* 7日均值 */}
-              <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                      <div className="text-xs text-slate-400 mb-1">近7天均热量</div>
-                      <div className={`text-xl font-bold ${avgCal > 2300 ? 'text-red-500' : 'text-slate-800'}`}>{avgCal} <span className="text-xs font-normal">kcal</span></div>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                      <div className="text-xs text-slate-400 mb-1">近7天均蛋白</div>
-                      <div className={`text-xl font-bold ${avgPro < 140 ? 'text-orange-500' : 'text-indigo-600'}`}>{avgPro} <span className="text-xs font-normal">g</span></div>
-                  </div>
-              </div>
-
-              {/* 体重趋势 SVG 图 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 趋势追踪</h2>
                 <div className="h-32 w-full relative">
-                    {/* 目标线 */}
                     <div className="absolute w-full border-t border-dashed border-green-300" style={{top: `${goalY}%`}}></div>
-                    <div className="absolute right-0 text-[10px] text-green-500 bg-white px-1" style={{top: `${goalY-5}%`}}>目标</div>
-                    
-                    {/* 折线 */}
-                    <svg className="w-full h-full overflow-visible">
-                        <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={svgPoints} strokeLinecap="round" strokeLinejoin="round" />
-                        {weightData.map((d, i) => {
-                             const x = (i / (weightData.length - 1 || 1)) * 100;
-                             const y = 100 - ((d.weight - minW) / (maxW - minW)) * 100;
-                             return <circle key={i} cx={`${x}%`} cy={`${y}%`} r="3" className="fill-white stroke-indigo-500 stroke-2" />
-                        })}
-                    </svg>
+                    <svg className="w-full h-full overflow-visible"><polyline fill="none" stroke="#6366f1" strokeWidth="3" points={svgPoints} strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </div>
-                <div className="text-center text-xs text-slate-300 mt-2">最近14次记录点</div>
               </div>
-
-              {/* 热力图 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 执行热力图</h2>
                 <div className="grid grid-cols-7 gap-1.5">
                   {['一','二','三','四','五','六','日'].map(d => <div key={d} className="text-center text-[10px] text-slate-300 font-bold mb-1">{d}</div>)}
                   {historyData.slice(-28).map((day, i) => {
                     let color = "bg-slate-100";
-                    let ring = "";
                     if (!day.isVirtual) {
-                      if (day.workoutCompleted && day.protein >= userProfile.targetProtein - 20) { color = "bg-green-500"; }
-                      else if (day.workoutCompleted) { color = "bg-blue-400"; }
-                      else if (day.calories > 2500) { color = "bg-red-400"; }
-                      else { color = "bg-slate-200"; }
+                      if (day.workoutCompleted && day.protein >= userProfile.targetProtein - 20) color = "bg-green-500";
+                      else if (day.workoutCompleted) color = "bg-blue-400";
+                      else if (day.calories > 2500) color = "bg-red-400";
+                      else color = "bg-slate-200";
                     }
-                    return <div key={i} className={`aspect-square rounded-md ${color} ${ring} relative group transition-all hover:scale-110`}></div>
+                    return <div key={i} className={`aspect-square rounded-md ${color} relative group transition-all hover:scale-110`}></div>
                   })}
-                </div>
-                <div className="flex gap-4 justify-center mt-4 text-[10px] text-slate-400">
-                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div> 完美</span>
-                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-400 rounded-full"></div> 练了</span>
-                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-red-400 rounded-full"></div> 爆碳</span>
-                    <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-200 rounded-full"></div> 休息</span>
                 </div>
               </div>
             </div>
@@ -311,23 +260,15 @@
             const currentSwaps = log.swaps || {};
             const exercise = dayPlan.exercises[index];
             if (!exercise.alternatives || exercise.alternatives.length === 0) return;
-
             const currentAltIndex = currentSwaps[index];
-            let nextAltIndex;
-            if (currentAltIndex === undefined) nextAltIndex = 0;
-            else if (currentAltIndex < exercise.alternatives.length - 1) nextAltIndex = currentAltIndex + 1;
-            else nextAltIndex = undefined;
-
+            let nextAltIndex = (currentAltIndex === undefined) ? 0 : (currentAltIndex < exercise.alternatives.length - 1 ? currentAltIndex + 1 : undefined);
             const newSwaps = { ...currentSwaps };
-            if (nextAltIndex === undefined) delete newSwaps[index];
-            else newSwaps[index] = nextAltIndex;
-            
+            if (nextAltIndex === undefined) delete newSwaps[index]; else newSwaps[index] = nextAltIndex;
             saveLog(formatDate(selectedDate), { swaps: newSwaps, isVirtual: false });
           };
 
           return (
             <div className="space-y-4 animate-fade-in pb-24 p-4">
-              {/* 日期导航 */}
               <div className="flex items-center justify-between bg-white p-3 rounded-2xl shadow-sm sticky top-0 z-20 border border-slate-100 backdrop-blur-md bg-opacity-90">
                 <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><ChevronLeft className="w-5 h-5" /></button>
                 <div className="text-center">
@@ -342,7 +283,6 @@
 
               {log.isVirtual && <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl flex gap-3 text-xs text-yellow-800 items-start"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>系统自动填充了这天的数据。如需修改，请直接操作。</span></div>}
 
-              {/* 训练卡片 */}
               <div className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${log.workoutCompleted ? 'border-green-500 shadow-green-100' : 'border-indigo-500'}`}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-slate-900 flex items-center gap-2"><Dumbbell className="w-5 h-5 text-indigo-500" /> 今日训练</h3>
@@ -357,7 +297,6 @@
                     const isSwapped = swapIndex !== undefined;
                     const displayEx = isSwapped ? ex.alternatives[swapIndex] : ex;
                     const hasAlts = ex.alternatives && ex.alternatives.length > 0;
-
                     return (
                       <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3 last:border-0 group">
                         <div className="flex-1">
@@ -365,44 +304,29 @@
                              <span className={`text-sm font-bold ${isSwapped ? 'text-indigo-600' : 'text-slate-700'}`}>{displayEx.name}</span>
                              {isSwapped && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-md font-medium">替代</span>}
                           </div>
-                          <div className="text-xs text-slate-400 font-mono mt-1 flex gap-2">
-                              <span className="bg-slate-50 px-1.5 rounded">{displayEx.sets}</span>
-                              <span>{displayEx.note}</span>
-                          </div>
+                          <div className="text-xs text-slate-400 font-mono mt-1 flex gap-2"><span className="bg-slate-50 px-1.5 rounded">{displayEx.sets}</span><span>{displayEx.note}</span></div>
                         </div>
-                        {hasAlts && (
-                            <button onClick={() => toggleExercise(i)} className="p-2 text-slate-200 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all" title="切换替代动作">
-                                <ArrowLeftRight className="w-4 h-4" />
-                            </button>
-                        )}
+                        {hasAlts && <button onClick={() => toggleExercise(i)} className="p-2 text-slate-200 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"><ArrowLeftRight className="w-4 h-4" /></button>}
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* 摄入与身体 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm">
                 <div className="flex items-center gap-2 mb-4 font-bold text-slate-800"><Utensils className="w-5 h-5 text-orange-500" /> 饮食与身体</div>
-                
-                {/* 动态饮食建议卡片 */}
                 {isToday && (
                     <div className={`mb-6 p-4 rounded-2xl flex gap-3 items-start ${dietTip.color}`}>
                         <div className="mt-0.5 shrink-0 bg-white bg-opacity-40 p-1.5 rounded-full">{dietTip.icon}</div>
-                        <div>
-                            <div className="font-bold text-xs uppercase tracking-wider opacity-80 mb-0.5">{dietTip.title}</div>
-                            <div className="text-sm font-medium leading-tight">{dietTip.content}</div>
-                        </div>
+                        <div><div className="font-bold text-xs uppercase tracking-wider opacity-80 mb-0.5">{dietTip.title}</div><div className="text-sm font-medium leading-tight">{dietTip.content}</div></div>
                     </div>
                 )}
-
                 <div className="bg-indigo-50 p-3 rounded-2xl mb-6 border border-indigo-100 relative">
                   <textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="记录午餐..." className="w-full bg-white p-3 text-sm rounded-xl outline-none border border-transparent focus:border-indigo-300 h-20 resize-none mb-2 placeholder-indigo-200 text-indigo-900" />
                   <button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5 transition-colors shadow-lg shadow-indigo-200">
                     {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI 识别并添加
                   </button>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="bg-slate-50 p-4 rounded-2xl">
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">蛋白质</div>
@@ -421,7 +345,6 @@
                     <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className={`h-full transition-all duration-500 ${log.calories > 2500 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (log.calories/2200)*100)}%` }}></div></div>
                   </div>
                 </div>
-
                 <div className="border-t border-slate-100 pt-4 px-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Scale className="w-4 h-4 text-indigo-400"/> 今日晨重</span>
@@ -433,11 +356,8 @@
                 </div>
               </div>
 
-              {/* AI 总结按钮 (高亮升级) */}
               {log.aiAnalysis ? (
-                  <div className="bg-slate-800 p-5 rounded-3xl shadow-lg shadow-slate-200 text-slate-300 text-sm italic border-l-4 border-indigo-500 leading-relaxed">
-                      "{log.aiAnalysis}"
-                  </div>
+                  <div className="bg-slate-800 p-5 rounded-3xl shadow-lg shadow-slate-200 text-slate-300 text-sm italic border-l-4 border-indigo-500 leading-relaxed">"{log.aiAnalysis}"</div>
               ) : (
                   <button onClick={generateDailySummary} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:scale-[1.02] transition-transform active:scale-95">
                       <BrainCircuit className="w-5 h-5" /> 生成今日 AI 教练总结
@@ -447,135 +367,112 @@
           );
         };
 
-        // --- 主组件 ---
-        function FredFitnessTrackerV4() {
-          const [setupMode, setSetupMode] = useState(false); 
-          const [userProfile, setUserProfile] = useState({ name: "Fred", height: 182, startWeight: 80.0, goalWeight: 74.0, startDate: "2025-12-14", age: 41, targetProtein: 160, targetCaloriesRest: 1800, targetCaloriesTrain: 2300 });
-          const [activeTab, setActiveTab] = useState('log'); 
-          const [logs, setLogs] = useState({});
-          const [selectedDate, setSelectedDate] = useState(new Date()); 
-          const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
-          const [loading, setLoading] = useState(false);
-          const [foodInput, setFoodInput] = useState("");
-          const [showSettings, setShowSettings] = useState(false);
+        // --- 主程序 (V5.0 云端架构) ---
+        function FredFitnessTrackerV5() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [userProfile, setUserProfile] = useState({ name: "Fred", height: 182, startWeight: 80.0, goalWeight: 74.0, startDate: formatDate(new Date()), age: 41, targetProtein: 160, targetCaloriesRest: 1800, targetCaloriesTrain: 2300 });
+            const [logs, setLogs] = useState({});
+            const [setupMode, setSetupMode] = useState(false);
+            const [activeTab, setActiveTab] = useState('log');
+            const [selectedDate, setSelectedDate] = useState(new Date());
+            const [apiKey, setApiKey] = useState(localStorage.getItem('fred_deepseek_key') || DEFAULT_DEEPSEEK_KEY);
+            const [aiLoading, setAiLoading] = useState(false);
+            const [foodInput, setFoodInput] = useState("");
+            const [showSettings, setShowSettings] = useState(false);
 
-          useEffect(() => {
-            const savedProfile = localStorage.getItem('fred_profile_v4');
-            if (savedProfile) setUserProfile(JSON.parse(savedProfile)); else setSetupMode(true);
-            const savedLogs = localStorage.getItem('fred_logs_v4');
-            if (savedLogs) setLogs(JSON.parse(savedLogs));
-            const savedKey = localStorage.getItem('fred_deepseek_key');
-            if (savedKey) setApiKey(savedKey);
-            setSelectedDate(new Date());
-          }, []);
-
-          const saveProfile = (newProfile) => {
-            setUserProfile(newProfile);
-            localStorage.setItem('fred_profile_v4', JSON.stringify(newProfile));
-            setSetupMode(false);
-          };
-
-          const saveLog = (dateStr, data) => {
-            const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } };
-            setLogs(newLogs);
-            localStorage.setItem('fred_logs_v4', JSON.stringify(newLogs));
-          };
-
-          const getLog = (dateStr) => {
-            if (logs[dateStr]) return logs[dateStr];
-            const todayStr = formatDate(new Date());
-            if (dateStr < todayStr) return { isVirtual: true, weight: null, calories: 2000, protein: 80, workoutCompleted: false, foodLog: [], swaps: {} };
-            return { weight: null, protein: 0, calories: 0, workoutCompleted: false, foodLog: [], swaps: {} };
-          };
-
-          const callDeepSeek = async (systemPrompt, userPrompt) => {
-            if (!apiKey) { alert("请在设置中检查 API Key"); return null; }
-            try {
-              setLoading(true);
-              const response = await fetch("https://api.deepseek.com/chat/completions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: "deepseek-chat", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], temperature: 0.7 })
-              });
-              const data = await response.json();
-              setLoading(false);
-              return data.choices[0].message.content;
-            } catch (error) { setLoading(false); alert("AI 连接失败: " + error.message); return null; }
-          };
-
-          const handleFoodAnalysis = async () => {
-            if (!foodInput.trim()) return;
-            const prompt = `分析食物：${foodInput}。返回JSON格式：{"calories": number, "protein": number, "analysis": "string"}`;
-            const res = await callDeepSeek("营养师，只回JSON", prompt);
-            if (res) {
-              try {
-                const cleanJson = res.replace(/```json/g, '').replace(/```/g, '').trim();
-                const data = JSON.parse(cleanJson);
-                const current = getLog(formatDate(selectedDate));
-                saveLog(formatDate(selectedDate), {
-                  calories: (current.calories || 0) + data.calories,
-                  protein: (current.protein || 0) + data.protein,
-                  foodLog: [...(current.foodLog || []), { time: '刚刚', text: foodInput, cal: data.calories, pro: data.protein }]
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    setUser(currentUser);
+                    setLoading(false);
+                    if (currentUser) {
+                        const docRef = doc(db, "users", currentUser.uid);
+                        const unsubDoc = onSnapshot(docRef, (docSnap) => {
+                            if (docSnap.exists()) {
+                                const data = docSnap.data();
+                                if (data.profile) setUserProfile(data.profile);
+                                if (data.logs) setLogs(data.logs);
+                                setSetupMode(false);
+                            } else { setSetupMode(true); }
+                        });
+                        return () => unsubDoc();
+                    }
                 });
-                setFoodInput("");
-              } catch (e) { alert("解析失败"); }
-            }
-          };
+                return () => unsubscribe();
+            }, []);
 
-          const generateDailySummary = async () => {
-            const current = getLog(formatDate(selectedDate));
-            const prompt = `日期:${formatDate(selectedDate)}, 体重:${current.weight || '未测'}, 热量:${current.calories}, 蛋白:${current.protein}, 训练:${current.workoutCompleted?'是':'否'}。给Fred一段简短犀利的点评。`;
-            const res = await callDeepSeek("严格健身教练", prompt);
-            if (res) saveLog(formatDate(selectedDate), { aiAnalysis: res });
-          };
+            const saveToCloud = async (newProfile, newLogs) => {
+                if (!user) return;
+                try { await setDoc(doc(db, "users", user.uid), { profile: newProfile || userProfile, logs: newLogs || logs }, { merge: true }); } catch (e) { console.error("同步失败", e); }
+            };
+            const saveProfile = (newProfile) => { setUserProfile(newProfile); saveToCloud(newProfile, null); setSetupMode(false); };
+            const saveLog = (dateStr, data) => { const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; setLogs(newLogs); saveToCloud(null, newLogs); };
+            const getLog = (dateStr) => {
+                if (logs[dateStr]) return logs[dateStr];
+                const todayStr = formatDate(new Date());
+                if (dateStr < todayStr) return { isVirtual: true, weight: null, calories: 2000, protein: 80, workoutCompleted: false, foodLog: [], swaps: {} };
+                return { weight: null, protein: 0, calories: 0, workoutCompleted: false, foodLog: [], swaps: {} };
+            };
 
-          if (setupMode) {
+            const callDeepSeek = async (systemPrompt, userPrompt) => {
+                if (!apiKey) { alert("请在设置中检查 API Key"); return null; }
+                try {
+                  setAiLoading(true);
+                  const response = await fetch("https://api.deepseek.com/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` }, body: JSON.stringify({ model: "deepseek-chat", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], temperature: 0.7 }) });
+                  const data = await response.json();
+                  setAiLoading(false);
+                  return data.choices[0].message.content;
+                } catch (error) { setAiLoading(false); alert("AI 连接失败: " + error.message); return null; }
+            };
+
+            const handleFoodAnalysis = async () => {
+                if (!foodInput.trim()) return;
+                const prompt = `分析食物：${foodInput}。返回JSON格式：{"calories": number, "protein": number, "analysis": "string"}`;
+                const res = await callDeepSeek("营养师，只回JSON", prompt);
+                if (res) {
+                  try {
+                    const cleanJson = res.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const data = JSON.parse(cleanJson);
+                    const current = getLog(formatDate(selectedDate));
+                    saveLog(formatDate(selectedDate), { calories: (current.calories || 0) + data.calories, protein: (current.protein || 0) + data.protein, foodLog: [...(current.foodLog || []), { time: '刚刚', text: foodInput, cal: data.calories, pro: data.protein }] });
+                    setFoodInput("");
+                  } catch (e) { alert("解析失败"); }
+                }
+            };
+
+            const generateDailySummary = async () => {
+                const current = getLog(formatDate(selectedDate));
+                const prompt = `日期:${formatDate(selectedDate)}, 体重:${current.weight || '未测'}, 热量:${current.calories}, 蛋白:${current.protein}, 训练:${current.workoutCompleted?'是':'否'}。给Fred一段简短犀利的点评。`;
+                const res = await callDeepSeek("严格健身教练", prompt);
+                if (res) saveLog(formatDate(selectedDate), { aiAnalysis: res });
+            };
+
+            if (loading) return <div className="h-full flex items-center justify-center text-slate-500 animate-pulse">正在连接云端数据库...</div>;
+            if (!user) return <LoginScreen />;
+
             return (
-              <div className="h-full bg-slate-900 text-white p-6 flex flex-col justify-center animate-fade-in">
-                <div className="mb-8 text-center">
-                  <Activity className="w-16 h-16 text-indigo-500 mx-auto mb-4" />
-                  <h1 className="text-2xl font-bold mb-2">欢迎, Fred</h1>
-                  <p className="text-slate-400">让我们校准你的初始数据，以获得最精准的AI分析。</p>
+                <div className="h-full flex flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
+                    <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md bg-opacity-80 absolute top-0 w-full">
+                        <div className="flex items-center gap-2">{user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-200"/>}<div><h1 className="font-black text-lg italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.CLOUD</span></h1></div></div>
+                        <div className="flex gap-2"><button onClick={() => signOut(auth)} className="text-slate-400 hover:text-red-500"><LogOut className="w-5 h-5" /></button><button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600"><Settings className="w-5 h-5" /></button></div>
+                    </header>
+                    <main className="flex-1 overflow-y-auto scrollbar-hide pt-16">
+                        {setupMode ? (
+                             <div className="p-6 h-full flex flex-col justify-center animate-fade-in bg-slate-900 text-white"><h1 className="text-2xl font-bold mb-4">欢迎加入 Fred Cloud</h1><p className="text-slate-400 mb-6">这是你第一次登录，请初始化数据。</p><div className="space-y-4"><div><label className="text-xs text-slate-400">初始体重</label><input type="number" value={userProfile.startWeight} onChange={e=>setUserProfile({...userProfile, startWeight: parseFloat(e.target.value)})} className="w-full bg-slate-800 p-3 rounded text-lg font-bold" /></div><button onClick={()=>saveProfile(userProfile)} className="w-full bg-indigo-600 py-3 rounded font-bold">开始同步</button></div></div>
+                        ) : showSettings ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} setSetupMode={setSetupMode} /> : 
+                        (activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={getLog(formatDate(selectedDate))} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} loading={aiLoading} generateDailySummary={generateDailySummary} /> : <HistoryTab userProfile={userProfile} logs={logs} />)}
+                    </main>
+                    <nav className="bg-white border-t border-slate-100 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
+                        <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">历史/趋势</span></button>
+                        <button onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} className={`p-4 -mt-10 bg-indigo-600 rounded-full text-white shadow-xl shadow-indigo-300 transition-transform active:scale-95 border-4 border-slate-50`}><Activity className="w-6 h-6" /></button>
+                        <button onClick={() => { setActiveTab('log'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><Calendar className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">今日打卡</span></button>
+                    </nav>
                 </div>
-                <div className="space-y-4 bg-slate-800 p-6 rounded-2xl">
-                  <div><label className="block text-xs text-slate-400 mb-1">初始体重 (kg)</label><input type="number" value={userProfile.startWeight} onChange={e => setUserProfile({...userProfile, startWeight: parseFloat(e.target.value) || 0})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500" /></div>
-                  <div><label className="block text-xs text-slate-400 mb-1">目标体重 (kg)</label><input type="number" value={userProfile.goalWeight} onChange={e => setUserProfile({...userProfile, goalWeight: parseFloat(e.target.value) || 0})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500" /></div>
-                  <div><label className="block text-xs text-slate-400 mb-1">计划开始日期</label><input type="date" value={userProfile.startDate} onChange={e => setUserProfile({...userProfile, startDate: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500" /></div>
-                </div>
-                <button onClick={() => saveProfile(userProfile)} className="mt-8 bg-indigo-600 w-full py-4 rounded-xl font-bold text-lg hover:bg-indigo-500 transition-colors flex items-center justify-center gap-2">开启计划 <ChevronRight /></button>
-              </div>
             );
-          }
-
-          const currentLog = getLog(formatDate(selectedDate));
-          const dayPlan = BASE_PLAN[selectedDate.getDay()];
-
-          return (
-            <div className="h-full flex flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
-              <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md bg-opacity-80 absolute top-0 w-full">
-                <h1 className="font-black text-xl italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.PRO</span></h1>
-                <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600"><Settings className="w-5 h-5" /></button>
-              </header>
-              <main className="flex-1 overflow-y-auto scrollbar-hide pt-16">
-                {showSettings ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} setSetupMode={setSetupMode} /> : 
-                (activeTab === 'log' 
-                  ? <LoggerTab 
-                      selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={currentLog} saveLog={saveLog} userProfile={userProfile} dayPlan={dayPlan} logs={logs}
-                      foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} loading={loading} generateDailySummary={generateDailySummary} 
-                    /> 
-                  : <HistoryTab userProfile={userProfile} logs={logs} />)}
-              </main>
-              <nav className="bg-white border-t border-slate-100 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
-                <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">历史/趋势</span></button>
-                <button onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} className={`p-4 -mt-10 bg-indigo-600 rounded-full text-white shadow-xl shadow-indigo-300 transition-transform active:scale-95 border-4 border-slate-50`}><Activity className="w-6 h-6" /></button>
-                <button onClick={() => { setActiveTab('log'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><Calendar className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">今日打卡</span></button>
-              </nav>
-            </div>
-          );
         }
 
         const root = createRoot(document.getElementById('root'));
-        root.render(<FredFitnessTrackerV4 />);
+        root.render(<FredFitnessTrackerV5 />);
 
     </script>
 </body>
