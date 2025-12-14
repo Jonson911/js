@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred Fitness (Cloud Pro)</title>
+    <title>Fred健身营养计划 (Cloud Pro)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -463,9 +463,21 @@
                         (activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={getLog(formatDate(selectedDate))} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} loading={aiLoading} generateDailySummary={generateDailySummary} /> : <HistoryTab userProfile={userProfile} logs={logs} />)}
                     </main>
                     <nav className="bg-white border-t border-slate-100 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
-                        <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">历史/趋势</span></button>
-                        <button onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} className={`p-4 -mt-10 bg-indigo-600 rounded-full text-white shadow-xl shadow-indigo-300 transition-transform active:scale-95 border-4 border-slate-50`}><Activity className="w-6 h-6" /></button>
-                        <button onClick={() => { setActiveTab('log'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><Calendar className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">今日打卡</span></button>
+                        <button 
+                            onClick={() => { setActiveTab('history'); setShowSettings(false); }} 
+                            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <History className="w-6 h-6" />
+                            <span className="text-[10px] font-bold mt-1">历史/趋势</span>
+                        </button>
+                        
+                        <button 
+                            onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} 
+                            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <Activity className="w-6 h-6" />
+                            <span className="text-[10px] font-bold mt-1">今日打卡</span>
+                        </button>
                     </nav>
                 </div>
             );
