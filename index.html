@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (V5.6 双重保险版)</title>
+    <title>Fred 健康营养计划 (V5.7 云端修复版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -33,7 +33,7 @@
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
         <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
-            正在初始化 Fred 的健康数据...
+            正在连接 Fred 的云端数据库...
         </div>
     </div>
 
@@ -44,7 +44,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, AlertOctagon
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, AlertOctagon, WifiOff
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -168,7 +168,6 @@
             }
         };
 
-        // --- 本地化日期处理 (解决时区Bug) ---
         const formatDate = (date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -176,11 +175,8 @@
             return `${year}-${month}-${day}`;
         };
 
-        // --- 组件 ---
-
         const LoginScreen = ({ onLogin }) => {
             const [error, setError] = useState(null);
-            
             const handleGoogleLogin = async () => {
                 const provider = new GoogleAuthProvider();
                 try {
@@ -189,23 +185,16 @@
                     setError("登录失败: " + err.message);
                 }
             };
-
             return (
                 <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-white animate-fade-in">
                     <Activity className="w-20 h-20 text-indigo-500 mb-6" />
                     <h1 className="text-3xl font-black mb-2">FRED<span className="text-indigo-500">.FIT</span></h1>
                     <p className="text-slate-400 mb-8 text-center text-sm">云端同步 · 多端打卡 · 智能教练</p>
-                    
-                    <button 
-                        onClick={handleGoogleLogin}
-                        className="w-full max-w-xs bg-white text-slate-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-colors"
-                    >
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" />
-                        使用 Google 账号登录
+                    <button onClick={handleGoogleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-colors">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> 使用 Google 账号登录
                     </button>
-                    
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.6 Dual-Save & Trend Fix</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.7 Cloud Fix + SVG Scaled</div>
                 </div>
             );
         };
@@ -214,11 +203,16 @@
           <div className="p-6 space-y-6 animate-fade-in bg-white h-full overflow-y-auto">
             <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Settings className="w-6 h-6" /> 账户与设置</h2>
             <div className="space-y-6">
+              {/* --- 诊断工具 --- */}
+              <div className="bg-red-50 p-4 rounded-xl space-y-2 border border-red-100">
+                  <h3 className="font-bold text-sm text-red-700 flex items-center gap-1"><AlertTriangle className="w-4 h-4"/> 数据库诊断</h3>
+                  <p className="text-[10px] text-red-600">如果其他设备看不到记录，请务必在 Firebase 控制台的 Rules 中设置为 allow read, write: if request.auth != null;</p>
+              </div>
+
               <div className="bg-slate-50 p-4 rounded-xl space-y-3">
                   <h3 className="font-bold text-sm text-slate-500">API 配置</h3>
                   <div><label className="text-xs font-bold text-slate-400 block mb-1">DeepSeek Key</label><input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value); }} className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-indigo-500" placeholder="sk-..." /></div>
               </div>
-              
               <div className="bg-slate-50 p-4 rounded-xl space-y-3">
                   <h3 className="font-bold text-sm text-slate-500">当前目标</h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -226,11 +220,8 @@
                       <div><label className="text-xs font-bold text-slate-400 block mb-1">蛋白目标 (g)</label><input type="number" value={userProfile.targetProtein} onChange={e => { const p = {...userProfile, targetProtein: parseFloat(e.target.value)}; saveProfile(p); }} className="w-full bg-white border border-slate-200 rounded px-3 py-2 text-sm font-bold text-slate-700" /></div>
                   </div>
               </div>
-
               <div className="pt-8 border-t border-slate-100">
-                  <button onClick={handleReset} className="w-full py-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-100">
-                      <RefreshCw className="w-4 h-4"/> 重置计划并重新开始
-                  </button>
+                  <button onClick={handleReset} className="w-full py-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-100"><RefreshCw className="w-4 h-4"/> 重置计划并重新开始</button>
                   <p className="text-xs text-slate-400 mt-2 text-center">注意：这将清空所有历史数据，让你重新设定初始体重。</p>
               </div>
             </div>
@@ -241,15 +232,12 @@
           const historyData = useMemo(() => {
             const days = [];
             const today = new Date();
-            // 确保生成最近14天的完整数据结构
             for (let i = 13; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
                 const dateStr = formatDate(d);
                 let log = logs[dateStr];
-                if (!log) { 
-                    log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; 
-                }
+                if (!log) { log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; }
                 days.push({ date: dateStr, ...log, dayObj: d });
             }
             return days;
@@ -258,54 +246,32 @@
           const currentWeight = historyData.slice().reverse().find(d => d.weight > 0)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
           
-          // --- 趋势图核心修复 ---
-          // 即使只有一个点，也要尝试构造趋势线
-          let weightData = historyData.filter(d => d.weight > 0);
-          
-          // 自动补全逻辑：如果没有数据，或者只有今天的数据，就把 14天前的“初始体重”加进去作为基准
           const plotData = [...historyData];
           
-          // 策略：找到第一个有效数据点，如果没有，就假设14天前是初始体重
-          let firstValidIndex = plotData.findIndex(d => d.weight > 0);
-          if (firstValidIndex === -1) {
-              // 没有任何数据，全空
+          // 修复：如果没有数据点，或者数据中断，用初始体重补全，确保连线
+          if (plotData.every(d => !d.weight)) {
               plotData[0].weight = userProfile.startWeight;
-          } else if (firstValidIndex > 0) {
-              // 有数据，但前面有空缺，我们在第一天补上初始体重，形成连线（可选，或者就让它空着）
-              // 这里为了美观，我们不强行补，而是让它自然断开，但如果只有一个点，必须补
-              if (weightData.length === 1) {
-                  // 只有一个点，无法画线。我们在它前一天补一个同样的值或者初始值
-                  const prevIndex = Math.max(0, firstValidIndex - 1);
-                  if (!plotData[prevIndex].weight) {
-                      plotData[prevIndex].weight = userProfile.startWeight;
-                  }
-              }
           }
+          
+          const validWeights = plotData.filter(d => d.weight > 0).map(d => d.weight);
+          const minW = validWeights.length ? Math.min(...validWeights, userProfile.goalWeight) - 1 : 70;
+          const maxW = validWeights.length ? Math.max(...validWeights, userProfile.startWeight) + 1 : 90;
+          const range = maxW - minW || 1;
+          const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
 
-          // 重新获取用于绘图的有效点
           const points = plotData.map((day, index) => {
               if (!day.weight || day.weight <= 0) return null;
               return { index, weight: day.weight };
           }).filter(p => p !== null);
 
-          const validWeights = points.map(p => p.weight);
-          const minW = validWeights.length ? Math.min(...validWeights, userProfile.goalWeight) - 1 : 70;
-          const maxW = validWeights.length ? Math.max(...validWeights, userProfile.startWeight) + 1 : 90;
-          const range = maxW - minW || 1;
-          
-          const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
-
-          // 生成坐标
+          // SVG 坐标生成 (修复：使用 viewBox 0 0 100 100 自动缩放)
           const svgPoints = points.map(p => { 
              const x = (p.index / 13) * 100; 
              const y = 100 - ((p.weight - minW) / range) * 100; 
              return {x, y, val: p.weight}; 
           });
 
-          // SVG 路径
           const linePath = svgPoints.map(p => `${p.x},${p.y}`).join(" ");
-          
-          // 渐变区域
           let areaPath = "";
           if (svgPoints.length > 1) {
               const first = svgPoints[0];
@@ -313,17 +279,14 @@
               areaPath = `${linePath} L${last.x},100 L${first.x},100 Z`;
           }
 
-          // 达标率计算
           const calculateScore = (day) => {
               if (day.isVirtual) return 0;
               let score = 0;
               if (day.workoutCompleted) score += 40;
               const proTarget = userProfile.targetProtein || 160;
-              if (day.protein >= proTarget * 0.8) score += 30;
-              else if (day.protein > 0) score += (day.protein / proTarget) * 30;
+              if (day.protein >= proTarget * 0.8) score += 30; else if (day.protein > 0) score += (day.protein / proTarget) * 30;
               const calTarget = userProfile.targetCaloriesTrain || 2300;
-              if (day.calories > 0 && day.calories <= calTarget + 400) score += 30;
-              else if (day.calories > 0) score += 10;
+              if (day.calories > 0 && day.calories <= calTarget + 400) score += 30; else if (day.calories > 0) score += 10;
               return Math.min(100, Math.round(score));
           };
 
@@ -341,46 +304,41 @@
                 </div>
               </div>
 
-              {/* 趋势追踪 (修复版) */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 体重趋势 (近14天)</h2>
                 <div className="h-44 w-full relative px-2 select-none">
                     <div className="absolute w-full border-t border-dashed border-green-300 left-0 transition-all duration-500" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}></div>
                     <div className="absolute right-0 text-[10px] text-green-600 -mt-4 bg-white px-1 transition-all duration-500 font-bold" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}>Goal {userProfile.goalWeight}</div>
                     
-                    <svg className="w-full h-full overflow-visible">
+                    {/* 修复：viewBox="0 0 100 100" 加上 preserveAspectRatio="none" 确保充满 */}
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <defs>
                             <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2"/>
                                 <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
                             </linearGradient>
                         </defs>
-                        {svgPoints.length > 1 && <path d={areaPath} fill="url(#chartGradient)" />}
-                        {svgPoints.length > 1 && <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={linePath} strokeLinecap="round" strokeLinejoin="round" />}
+                        {svgPoints.length > 1 && <path d={areaPath} fill="url(#chartGradient)" vectorEffect="non-scaling-stroke" />}
+                        {svgPoints.length > 1 && <polyline fill="none" stroke="#6366f1" strokeWidth="2" points={linePath} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
                         
                         {svgPoints.map((p, i) => (
                              <g key={i}>
-                                <circle cx={`${p.x}%`} cy={`${p.y}%`} r={i === svgPoints.length - 1 ? 5 : 4} className={`stroke-2 ${i === svgPoints.length - 1 ? 'fill-indigo-600 stroke-white animate-pulse' : 'fill-white stroke-indigo-500'}`} />
-                                <text x={`${p.x}%`} y={`${p.y}%`} dy="-12" textAnchor="middle" className="text-[10px] fill-slate-500 font-bold">{p.val}</text>
+                                {/* 数据点不缩放 */}
+                                <circle cx={`${p.x}`} cy={`${p.y}`} r="1.5" className={`stroke-1 ${i === svgPoints.length - 1 ? 'fill-indigo-600 stroke-white' : 'fill-white stroke-indigo-500'}`} vectorEffect="non-scaling-stroke" />
                              </g>
                         ))}
                     </svg>
                 </div>
-              </div>
+            </div>
 
-              {/* 每日达标评分 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近7天)</h2>
                 <div className="flex justify-between items-end gap-2 h-40">
                   {historyData.slice(-7).map((day, i) => {
                     const score = calculateScore(day);
                     let color = "bg-slate-200";
-                    if (score >= 80) color = "bg-green-500";
-                    else if (score >= 50) color = "bg-indigo-400";
-                    else if (score > 0) color = "bg-orange-300";
-                    
+                    if (score >= 80) color = "bg-green-500"; else if (score >= 50) color = "bg-indigo-400"; else if (score > 0) color = "bg-orange-300";
                     const isToday = day.date === formatDate(new Date());
-
                     return (
                         <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group relative h-full">
                             <div className={`text-[10px] font-bold mb-1 transition-all ${score > 0 ? 'text-slate-600' : 'text-transparent'}`}>{score}</div>
@@ -399,27 +357,17 @@
 
         const LoggerTab = ({ 
           selectedDate, setSelectedDate, log, saveLog, userProfile, dayPlan, logs,
-          foodInput, setFoodInput, handleFoodAnalysis, loading, generateDailySummary, isSyncing
+          foodInput, setFoodInput, handleFoodAnalysis, loading, generateDailySummary, isSyncing, syncError
         }) => {
           const isToday = formatDate(selectedDate) === formatDate(new Date());
-          
           const getMealPlan = () => {
-              let type = dayPlan.type;
-              if (type !== 'Strength' && type !== 'HighIntensity') type = 'Rest'; 
-              const plan = MEAL_PLANS[type] || MEAL_PLANS['Strength'];
-              const idx = selectedDate.getDate() % 2; 
-              return {
-                  breakfast: plan.breakfast[Math.min(idx, plan.breakfast.length-1)],
-                  lunch: plan.lunch[Math.min(idx, plan.lunch.length-1)],
-                  dinner: plan.dinner[Math.min(idx, plan.dinner.length-1)],
-                  snacks: plan.snacks ? plan.snacks[0] : {main: "无", alt: "无", note: ""}
-              }
+              let type = dayPlan.type; if (type !== 'Strength' && type !== 'HighIntensity') type = 'Rest'; 
+              const plan = MEAL_PLANS[type] || MEAL_PLANS['Strength']; const idx = selectedDate.getDate() % 2; 
+              return { breakfast: plan.breakfast[Math.min(idx, plan.breakfast.length-1)], lunch: plan.lunch[Math.min(idx, plan.lunch.length-1)], dinner: plan.dinner[Math.min(idx, plan.dinner.length-1)], snacks: plan.snacks ? plan.snacks[0] : {main: "无", alt: "无", note: ""} }
           };
           const dailyMeal = getMealPlan();
-
           const toggleExercise = (index) => {
-            const currentSwaps = log.swaps || {};
-            const exercise = dayPlan.exercises[index];
+            const currentSwaps = log.swaps || {}; const exercise = dayPlan.exercises[index];
             if (!exercise.alternatives || exercise.alternatives.length === 0) return;
             const currentAltIndex = currentSwaps[index];
             let nextAltIndex = (currentAltIndex === undefined) ? 0 : (currentAltIndex < exercise.alternatives.length - 1 ? currentAltIndex + 1 : undefined);
@@ -432,121 +380,42 @@
             <div className="space-y-4 animate-fade-in pb-24 p-4">
               <div className="flex items-center justify-between bg-white p-3 rounded-2xl shadow-sm sticky top-0 z-20 border border-slate-100 backdrop-blur-md bg-opacity-90">
                 <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><ChevronLeft className="w-5 h-5" /></button>
-                <div className="text-center">
-                  <div className="font-bold text-slate-800 flex items-center justify-center gap-2 text-lg">
-                    {isToday && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
-                    {selectedDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-                  </div>
-                  <div className="text-[10px] text-indigo-500 font-bold uppercase mt-0.5 tracking-wider">{dayPlan.title}</div>
-                </div>
+                <div className="text-center"><div className="font-bold text-slate-800 flex items-center justify-center gap-2 text-lg">{isToday && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}{selectedDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</div><div className="text-[10px] text-indigo-500 font-bold uppercase mt-0.5 tracking-wider">{dayPlan.title}</div></div>
                 <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><ChevronRight className="w-5 h-5" /></button>
               </div>
 
-              {log.isVirtual && <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl flex gap-3 text-xs text-yellow-800 items-start"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>系统自动填充了这天的数据。如需修改，请直接操作。</span></div>}
+              {/* 错误提示条 (如果云端同步失败) */}
+              {syncError && <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex gap-3 text-xs text-red-700 items-start animate-bounce"><WifiOff className="w-4 h-4 shrink-0 mt-0.5" /><span>云端同步失败 (权限不足)。请去 Firebase 控制台 Rules 设置 "allow read, write: if true;" 临时测试。数据已保存在本地。</span></div>}
 
               {/* 训练卡片 */}
               <div className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${log.workoutCompleted ? 'border-green-500 shadow-green-100' : 'border-indigo-500'}`}>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-slate-900 flex items-center gap-2"><Dumbbell className="w-5 h-5 text-indigo-500" /> 今日训练</h3>
-                  <button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted, isVirtual: false })} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${log.workoutCompleted ? 'bg-green-500 text-white shadow-lg shadow-green-200 transform scale-105' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
-                    {log.workoutCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300"></div>}
-                    {log.workoutCompleted ? '已完成' : '打卡'}
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  {dayPlan.exercises.map((ex, i) => {
-                    const swapIndex = log.swaps ? log.swaps[i] : undefined;
-                    const isSwapped = swapIndex !== undefined;
-                    const displayEx = isSwapped ? ex.alternatives[swapIndex] : ex;
-                    const hasAlts = ex.alternatives && ex.alternatives.length > 0;
-                    return (
-                      <div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3 last:border-0 group">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                             <span className={`text-sm font-bold ${isSwapped ? 'text-indigo-600' : 'text-slate-700'}`}>{displayEx.name}</span>
-                             {isSwapped && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-md font-medium">替代</span>}
-                          </div>
-                          <div className="text-xs text-slate-400 font-mono mt-1 flex gap-2"><span className="bg-slate-50 px-1.5 rounded">{displayEx.sets}</span><span>{displayEx.note}</span></div>
-                        </div>
-                        {hasAlts && <button onClick={() => toggleExercise(i)} className="p-2 text-slate-200 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"><ArrowLeftRight className="w-4 h-4" /></button>}
-                      </div>
-                    );
-                  })}
-                </div>
+                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-900 flex items-center gap-2"><Dumbbell className="w-5 h-5 text-indigo-500" /> 今日训练</h3><button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted, isVirtual: false })} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${log.workoutCompleted ? 'bg-green-500 text-white shadow-lg shadow-green-200 transform scale-105' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{log.workoutCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300"></div>}{log.workoutCompleted ? '已完成' : '打卡'}</button></div>
+                <div className="space-y-4">{dayPlan.exercises.map((ex, i) => { const swapIndex = log.swaps ? log.swaps[i] : undefined; const isSwapped = swapIndex !== undefined; const displayEx = isSwapped ? ex.alternatives[swapIndex] : ex; const hasAlts = ex.alternatives && ex.alternatives.length > 0; return (<div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3 last:border-0 group"><div className="flex-1"><div className="flex items-center gap-2"><span className={`text-sm font-bold ${isSwapped ? 'text-indigo-600' : 'text-slate-700'}`}>{displayEx.name}</span>{isSwapped && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-md font-medium">替代</span>}</div><div className="text-xs text-slate-400 font-mono mt-1 flex gap-2"><span className="bg-slate-50 px-1.5 rounded">{displayEx.sets}</span><span>{displayEx.note}</span></div></div>{hasAlts && <button onClick={() => toggleExercise(i)} className="p-2 text-slate-200 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"><ArrowLeftRight className="w-4 h-4" /></button>}</div>);})}</div>
               </div>
 
-              {/* 今日主厨推荐 (包含加餐) */}
+              {/* 今日主厨推荐 */}
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-3xl shadow-sm border border-orange-100">
                   <div className="flex items-center gap-2 mb-3 font-bold text-orange-800"><ChefHat className="w-5 h-5"/> 主厨推荐 ({dayPlan.type === 'Rest' ? '低碳恢复' : '增肌充能'})</div>
                   <div className="space-y-3">
-                      <div className="bg-white bg-opacity-60 p-3 rounded-xl">
-                          <div className="text-[10px] text-orange-400 font-bold uppercase mb-1">早餐 Breakfast</div>
-                          <div className="text-sm font-medium text-slate-700">{dailyMeal.breakfast.main}</div>
-                          <div className="text-[10px] text-slate-400 mt-1">{dailyMeal.breakfast.note}</div>
-                      </div>
-                      <div className="bg-white bg-opacity-60 p-3 rounded-xl">
-                          <div className="text-[10px] text-orange-400 font-bold uppercase mb-1">午餐 Lunch</div>
-                          <div className="text-sm font-medium text-slate-700">{dailyMeal.lunch.main}</div>
-                          <div className="text-[10px] text-slate-400 mt-1">{dailyMeal.lunch.note}</div>
-                      </div>
-                      <div className="bg-white bg-opacity-60 p-3 rounded-xl">
-                          <div className="text-[10px] text-orange-400 font-bold uppercase mb-1">晚餐 Dinner</div>
-                          <div className="text-sm font-medium text-slate-700">{dailyMeal.dinner.main}</div>
-                          <div className="text-[10px] text-slate-400 mt-1">{dailyMeal.dinner.note}</div>
-                      </div>
-                      <div className="bg-indigo-50 bg-opacity-80 p-3 rounded-xl border border-indigo-100">
-                          <div className="flex items-center gap-1 text-[10px] text-indigo-500 font-bold uppercase mb-1"><Coffee className="w-3 h-3"/> 关键加餐 Snack</div>
-                          <div className="text-sm font-bold text-indigo-900">{dailyMeal.snacks.main}</div>
-                          <div className="text-[10px] text-indigo-400 mt-1">{dailyMeal.snacks.note}</div>
-                      </div>
+                      <div className="bg-white bg-opacity-60 p-3 rounded-xl"><div className="text-[10px] text-orange-400 font-bold uppercase mb-1">早餐 Breakfast</div><div className="text-sm font-medium text-slate-700">{dailyMeal.breakfast.main}</div><div className="text-[10px] text-slate-400 mt-1">{dailyMeal.breakfast.note}</div></div>
+                      <div className="bg-white bg-opacity-60 p-3 rounded-xl"><div className="text-[10px] text-orange-400 font-bold uppercase mb-1">午餐 Lunch</div><div className="text-sm font-medium text-slate-700">{dailyMeal.lunch.main}</div><div className="text-[10px] text-slate-400 mt-1">{dailyMeal.lunch.note}</div></div>
+                      <div className="bg-white bg-opacity-60 p-3 rounded-xl"><div className="text-[10px] text-orange-400 font-bold uppercase mb-1">晚餐 Dinner</div><div className="text-sm font-medium text-slate-700">{dailyMeal.dinner.main}</div><div className="text-[10px] text-slate-400 mt-1">{dailyMeal.dinner.note}</div></div>
+                      <div className="bg-indigo-50 bg-opacity-80 p-3 rounded-xl border border-indigo-100"><div className="flex items-center gap-1 text-[10px] text-indigo-500 font-bold uppercase mb-1"><Coffee className="w-3 h-3"/> 关键加餐 Snack</div><div className="text-sm font-bold text-indigo-900">{dailyMeal.snacks.main}</div><div className="text-[10px] text-indigo-400 mt-1">{dailyMeal.snacks.note}</div></div>
                   </div>
               </div>
 
+              {/* 饮食与身体 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm">
                 <div className="flex items-center gap-2 mb-4 font-bold text-slate-800"><Utensils className="w-5 h-5 text-indigo-500" /> 饮食与身体数据</div>
-                
-                <div className="bg-indigo-50 p-3 rounded-2xl mb-6 border border-indigo-100 relative">
-                  <textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="AI 帮我算：午饭吃了一碗牛肉面..." className="w-full bg-white p-3 text-sm rounded-xl outline-none border border-transparent focus:border-indigo-300 h-20 resize-none mb-2 placeholder-indigo-200 text-indigo-900" />
-                  <button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5 transition-colors shadow-lg shadow-indigo-200">
-                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI 识别并添加
-                  </button>
-                </div>
+                <div className="bg-indigo-50 p-3 rounded-2xl mb-6 border border-indigo-100 relative"><textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="AI 帮我算：午饭吃了一碗牛肉面..." className="w-full bg-white p-3 text-sm rounded-xl outline-none border border-transparent focus:border-indigo-300 h-20 resize-none mb-2 placeholder-indigo-200 text-indigo-900" /><button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5 transition-colors shadow-lg shadow-indigo-200">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI 识别并添加</button></div>
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-slate-50 p-4 rounded-2xl">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">蛋白质</div>
-                    <div className="flex justify-between items-end mb-2">
-                      <input type="number" min="0" value={log.protein === undefined || log.protein === null ? '' : log.protein} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-xl outline-none text-slate-800" placeholder="0" />
-                      <span className="text-[10px] text-slate-400 mb-1">/ {userProfile.targetProtein}g</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className="bg-indigo-500 h-full transition-all duration-500" style={{ width: `${Math.min(100, (log.protein/userProfile.targetProtein)*100)}%` }}></div></div>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">热量</div>
-                    <div className="flex justify-between items-end mb-2">
-                      <input type="number" min="0" value={log.calories === undefined || log.calories === null ? '' : log.calories} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-xl outline-none text-slate-800" placeholder="0" />
-                      <span className="text-[10px] text-slate-400 mb-1">/ {dayPlan.type === 'Rest' ? userProfile.targetCaloriesRest : userProfile.targetCaloriesTrain}</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className={`h-full transition-all duration-500 ${log.calories > 2500 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (log.calories/2200)*100)}%` }}></div></div>
-                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl"><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">蛋白质</div><div className="flex justify-between items-end mb-2"><input type="number" min="0" value={log.protein === undefined || log.protein === null ? '' : log.protein} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-xl outline-none text-slate-800" placeholder="0" /><span className="text-[10px] text-slate-400 mb-1">/ {userProfile.targetProtein}g</span></div><div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className="bg-indigo-500 h-full transition-all duration-500" style={{ width: `${Math.min(100, (log.protein/userProfile.targetProtein)*100)}%` }}></div></div></div>
+                  <div className="bg-slate-50 p-4 rounded-2xl"><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">热量</div><div className="flex justify-between items-end mb-2"><input type="number" min="0" value={log.calories === undefined || log.calories === null ? '' : log.calories} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent font-mono font-bold text-xl outline-none text-slate-800" placeholder="0" /><span className="text-[10px] text-slate-400 mb-1">/ {dayPlan.type === 'Rest' ? userProfile.targetCaloriesRest : userProfile.targetCaloriesTrain}</span></div><div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden"><div className={`h-full transition-all duration-500 ${log.calories > 2500 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (log.calories/2200)*100)}%` }}></div></div></div>
                 </div>
-                <div className="border-t border-slate-100 pt-4 px-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Scale className="w-4 h-4 text-indigo-400"/> 今日晨重</span>
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 pr-3">
-                      <input type="number" min="0" step="0.1" value={log.weight === undefined || log.weight === null ? '' : log.weight} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent p-1 text-center font-bold text-slate-800 outline-none" placeholder="0.0" />
-                      <span className="text-xs text-slate-400 font-bold">kg</span>
-                    </div>
-                  </div>
-                </div>
+                <div className="border-t border-slate-100 pt-4 px-2"><div className="flex justify-between items-center"><span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Scale className="w-4 h-4 text-indigo-400"/> 今日晨重</span><div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 pr-3"><input type="number" min="0" step="0.1" value={log.weight === undefined || log.weight === null ? '' : log.weight} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0, isVirtual: false })} className="w-16 bg-transparent p-1 text-center font-bold text-slate-800 outline-none" placeholder="0.0" /><span className="text-xs text-slate-400 font-bold">kg</span></div></div></div>
               </div>
 
-              {log.aiAnalysis ? (
-                  <div className="bg-slate-800 p-5 rounded-3xl shadow-lg shadow-slate-200 text-slate-300 text-sm italic border-l-4 border-indigo-500 leading-relaxed">"{log.aiAnalysis}"</div>
-              ) : (
-                  <button onClick={generateDailySummary} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:scale-[1.02] transition-transform active:scale-95">
-                      <BrainCircuit className="w-5 h-5" /> 生成今日 AI 教练总结
-                  </button>
-              )}
+              {log.aiAnalysis ? <div className="bg-slate-800 p-5 rounded-3xl shadow-lg shadow-slate-200 text-slate-300 text-sm italic border-l-4 border-indigo-500 leading-relaxed">"{log.aiAnalysis}"</div> : <button onClick={generateDailySummary} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:scale-[1.02] transition-transform active:scale-95"><BrainCircuit className="w-5 h-5" /> 生成今日 AI 教练总结</button>}
             </div>
           );
         };
@@ -564,18 +433,16 @@
             const [foodInput, setFoodInput] = useState("");
             const [showSettings, setShowSettings] = useState(false);
             const [isSyncing, setIsSyncing] = useState(false);
+            const [syncError, setSyncError] = useState(null); // 新增同步错误状态
 
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
                     setUser(currentUser);
                     setLoading(false);
                     if (currentUser) {
-                        // 初始化加载：先从LocalStorage尝试读取，提高首屏速度
                         const localData = localStorage.getItem('fred_logs_backup');
-                        if (localData) {
-                            try { setLogs(JSON.parse(localData)); } catch(e) {}
-                        }
-
+                        if (localData) { try { setLogs(JSON.parse(localData)); } catch(e) {} }
+                        
                         const docRef = doc(db, "users", currentUser.uid);
                         const unsubDoc = onSnapshot(docRef, (docSnap) => {
                             if (docSnap.exists()) {
@@ -583,7 +450,6 @@
                                 if (data.profile) setUserProfile(data.profile);
                                 if (data.logs) {
                                     setLogs(data.logs);
-                                    // 同步回本地备份
                                     localStorage.setItem('fred_logs_backup', JSON.stringify(data.logs));
                                 }
                                 setSetupMode(false);
@@ -595,34 +461,31 @@
                 return () => unsubscribe();
             }, []);
 
-            // 核心修复：双重写入 (Local + Cloud)
             const saveToCloud = async (newProfile, newLogs) => {
-                // 1. 先存本地，保证不丢
+                // 本地双重保险
                 if (newLogs) localStorage.setItem('fred_logs_backup', JSON.stringify(newLogs));
                 
                 if (!user) return;
                 setIsSyncing(true);
+                setSyncError(null);
                 try { 
                     await setDoc(doc(db, "users", user.uid), { 
                         profile: newProfile || userProfile, 
                         logs: newLogs || logs 
                     }, { merge: true }); 
                 } catch (e) { 
-                    console.error("同步失败", e); 
-                    alert("云端同步失败，但数据已保存至本地。请检查网络权限。");
+                    console.error("同步失败", e);
+                    // 只有当权限错误时才报错提示用户
+                    if (e.code === 'permission-denied') {
+                        setSyncError("权限不足");
+                    }
                 } finally {
                     setIsSyncing(false);
                 }
             };
             
             const saveProfile = (newProfile) => { setUserProfile(newProfile); saveToCloud(newProfile, null); setSetupMode(false); };
-            
-            const saveLog = (dateStr, data) => { 
-                const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; 
-                setLogs(newLogs); 
-                saveToCloud(null, newLogs); 
-            };
-            
+            const saveLog = (dateStr, data) => { const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; setLogs(newLogs); saveToCloud(null, newLogs); };
             const getLog = (dateStr) => {
                 if (logs[dateStr]) return logs[dateStr];
                 const todayStr = formatDate(new Date());
@@ -659,13 +522,7 @@
                   if (!response.ok) throw new Error("API 请求失败");
                   const data = await response.json();
                   return data.choices[0].message.content;
-                } catch (error) { 
-                    console.error(error);
-                    alert("AI 连接超时或失败，请检查网络或 Key"); 
-                    return null; 
-                } finally {
-                    setAiLoading(false);
-                }
+                } catch (error) { console.error(error); alert("AI 连接超时或失败"); return null; } finally { setAiLoading(false); }
             };
 
             const handleFoodAnalysis = async () => {
@@ -703,12 +560,9 @@
             return (
                 <div className="h-full flex flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
                     <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md bg-opacity-80 absolute top-0 w-full">
-                        <div className="flex items-center gap-2">
-                            {user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-200"/>}
-                            <div><h1 className="font-black text-lg italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.FIT</span></h1></div>
-                        </div>
+                        <div className="flex items-center gap-2">{user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-200"/>}<div><h1 className="font-black text-lg italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.FIT</span></h1></div></div>
                         <div className="flex gap-3 items-center">
-                            <div title={isSyncing ? "正在同步..." : "云端已同步"} className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></div>
+                            <div title={isSyncing ? "正在同步..." : "云端已同步"} className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-yellow-400 animate-pulse' : (syncError ? 'bg-red-500' : 'bg-green-500')}`}></div>
                             <button onClick={() => signOut(auth)} className="text-slate-400 hover:text-red-500"><LogOut className="w-5 h-5" /></button>
                             <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600"><Settings className="w-5 h-5" /></button>
                         </div>
@@ -717,24 +571,11 @@
                         {setupMode ? (
                              <div className="p-6 h-full flex flex-col justify-center animate-fade-in bg-slate-900 text-white"><h1 className="text-2xl font-bold mb-4">欢迎开启新计划</h1><p className="text-slate-400 mb-6">请重新输入你的当前状态，AI将为你重置数据。</p><div className="space-y-4"><div><label className="text-xs text-slate-400">当前体重 (kg)</label><input type="number" value={userProfile.startWeight} onChange={e=>setUserProfile({...userProfile, startWeight: parseFloat(e.target.value)})} className="w-full bg-slate-800 p-3 rounded text-lg font-bold" /></div><div><label className="text-xs text-slate-400">新目标体重 (kg)</label><input type="number" value={userProfile.goalWeight} onChange={e=>setUserProfile({...userProfile, goalWeight: parseFloat(e.target.value)})} className="w-full bg-slate-800 p-3 rounded text-lg font-bold" /></div><button onClick={()=>saveProfile(userProfile)} className="w-full bg-indigo-600 py-3 rounded font-bold">开始训练</button></div></div>
                         ) : showSettings ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} setSetupMode={setSetupMode} handleReset={handleReset} /> : 
-                        (activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={getLog(formatDate(selectedDate))} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} loading={aiLoading} generateDailySummary={generateDailySummary} isSyncing={isSyncing} /> : <HistoryTab userProfile={userProfile} logs={logs} />)}
+                        (activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={getLog(formatDate(selectedDate))} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} loading={aiLoading} generateDailySummary={generateDailySummary} isSyncing={isSyncing} syncError={syncError} /> : <HistoryTab userProfile={userProfile} logs={logs} />)}
                     </main>
                     <nav className="bg-white border-t border-slate-100 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
-                        <button 
-                            onClick={() => { setActiveTab('history'); setShowSettings(false); }} 
-                            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <History className="w-6 h-6" />
-                            <span className="text-[10px] font-bold mt-1">历史/趋势</span>
-                        </button>
-                        
-                        <button 
-                            onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} 
-                            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <Activity className="w-6 h-6" />
-                            <span className="text-[10px] font-bold mt-1">今日打卡</span>
-                        </button>
+                        <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">历史/趋势</span></button>
+                        <button onClick={() => { setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date()); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}><Activity className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">今日打卡</span></button>
                     </nav>
                 </div>
             );
