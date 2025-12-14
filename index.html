@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (V5.7 云端修复版)</title>
+    <title>Fred 健康营养计划 (V5.8 完美比例版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -194,7 +194,7 @@
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /> 使用 Google 账号登录
                     </button>
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.7 Cloud Fix + SVG Scaled</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.8 Cloud Fix + Perfect Ratio</div>
                 </div>
             );
         };
@@ -248,15 +248,46 @@
           
           const plotData = [...historyData];
           
-          // 修复：如果没有数据点，或者数据中断，用初始体重补全，确保连线
+          // 如果没有数据点，或者数据中断，用初始体重补全，确保连线
           if (plotData.every(d => !d.weight)) {
               plotData[0].weight = userProfile.startWeight;
           }
           
           const validWeights = plotData.filter(d => d.weight > 0).map(d => d.weight);
-          const minW = validWeights.length ? Math.min(...validWeights, userProfile.goalWeight) - 1 : 70;
-          const maxW = validWeights.length ? Math.max(...validWeights, userProfile.startWeight) + 1 : 90;
-          const range = maxW - minW || 1;
+          
+          // =================================================================
+          // 📊 比例微调核心算法 (V5.8)
+          // 目标：确保微小的体重变化（如0.5kg）也能在图表上有明显的起伏，
+          // 同时避免因为包含远期的目标体重而导致近期曲线被压扁。
+          // =================================================================
+          
+          // 1. 仅基于当前可视窗口内的数据计算最大/最小值
+          let dataMin = validWeights.length ? Math.min(...validWeights) : userProfile.goalWeight;
+          let dataMax = validWeights.length ? Math.max(...validWeights) : userProfile.startWeight;
+          
+          // 2. 设定最小显示范围 (buffer)，防止波动过小时看起来像过山车
+          const MIN_RANGE = 2.5; // 至少显示 2.5kg 的范围
+          const currentRange = dataMax - dataMin;
+          
+          let minW, maxW;
+          
+          if (currentRange < MIN_RANGE) {
+              // 如果波动很小，强制扩大上下限，使线条居中且平缓
+              const center = (dataMin + dataMax) / 2;
+              minW = center - (MIN_RANGE / 2);
+              maxW = center + (MIN_RANGE / 2);
+          } else {
+              // 如果波动正常，给予上下各 10% 的呼吸空间
+              const padding = currentRange * 0.1; 
+              minW = dataMin - padding;
+              maxW = dataMax + padding;
+          }
+
+          // 3. 计算最终渲染范围
+          const range = maxW - minW;
+          
+          // 4. 计算目标线的位置 (允许它跑出图表范围，CSS会处理)
+          // 这样目标线在底部作为参考，但不会压缩数据曲线
           const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
 
           const points = plotData.map((day, index) => {
@@ -264,9 +295,10 @@
               return { index, weight: day.weight };
           }).filter(p => p !== null);
 
-          // SVG 坐标生成 (修复：使用 viewBox 0 0 100 100 自动缩放)
+          // SVG 坐标生成
           const svgPoints = points.map(p => { 
              const x = (p.index / 13) * 100; 
+             // 这里确保 Y 轴坐标是基于我们优化后的 minW/maxW
              const y = 100 - ((p.weight - minW) / range) * 100; 
              return {x, y, val: p.weight}; 
           });
@@ -307,10 +339,10 @@
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 体重趋势 (近14天)</h2>
                 <div className="h-44 w-full relative px-2 select-none">
+                    {/* 目标线：通过 clamp 确保它最多停留在底部，不会消失，也不会破坏图表比例 */}
                     <div className="absolute w-full border-t border-dashed border-green-300 left-0 transition-all duration-500" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}></div>
                     <div className="absolute right-0 text-[10px] text-green-600 -mt-4 bg-white px-1 transition-all duration-500 font-bold" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}>Goal {userProfile.goalWeight}</div>
                     
-                    {/* 修复：viewBox="0 0 100 100" 加上 preserveAspectRatio="none" 确保充满 */}
                     <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <defs>
                             <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
@@ -323,7 +355,6 @@
                         
                         {svgPoints.map((p, i) => (
                              <g key={i}>
-                                {/* 数据点不缩放 */}
                                 <circle cx={`${p.x}`} cy={`${p.y}`} r="1.5" className={`stroke-1 ${i === svgPoints.length - 1 ? 'fill-indigo-600 stroke-white' : 'fill-white stroke-indigo-500'}`} vectorEffect="non-scaling-stroke" />
                              </g>
                         ))}
