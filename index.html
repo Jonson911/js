@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (V5.5 UI优化版)</title>
+    <title>Fred 健康营养计划 (V5.6 双重保险版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -33,7 +33,7 @@
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
         <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
-            正在连接 Fred 的云端数据库...
+            正在初始化 Fred 的健康数据...
         </div>
     </div>
 
@@ -44,7 +44,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, AlertOctagon
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -168,6 +168,7 @@
             }
         };
 
+        // --- 本地化日期处理 (解决时区Bug) ---
         const formatDate = (date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -175,7 +176,8 @@
             return `${year}-${month}-${day}`;
         };
 
-        // --- Auth Component ---
+        // --- 组件 ---
+
         const LoginScreen = ({ onLogin }) => {
             const [error, setError] = useState(null);
             
@@ -203,7 +205,7 @@
                     </button>
                     
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.5 UI Optimized</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.6 Dual-Save & Trend Fix</div>
                 </div>
             );
         };
@@ -239,6 +241,7 @@
           const historyData = useMemo(() => {
             const days = [];
             const today = new Date();
+            // 确保生成最近14天的完整数据结构
             for (let i = 13; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
@@ -255,35 +258,62 @@
           const currentWeight = historyData.slice().reverse().find(d => d.weight > 0)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
           
+          // --- 趋势图核心修复 ---
+          // 即使只有一个点，也要尝试构造趋势线
+          let weightData = historyData.filter(d => d.weight > 0);
+          
+          // 自动补全逻辑：如果没有数据，或者只有今天的数据，就把 14天前的“初始体重”加进去作为基准
           const plotData = [...historyData];
-          if (plotData.every(d => !d.weight)) {
-              plotData[0].weight = userProfile.startWeight; // Fallback
+          
+          // 策略：找到第一个有效数据点，如果没有，就假设14天前是初始体重
+          let firstValidIndex = plotData.findIndex(d => d.weight > 0);
+          if (firstValidIndex === -1) {
+              // 没有任何数据，全空
+              plotData[0].weight = userProfile.startWeight;
+          } else if (firstValidIndex > 0) {
+              // 有数据，但前面有空缺，我们在第一天补上初始体重，形成连线（可选，或者就让它空着）
+              // 这里为了美观，我们不强行补，而是让它自然断开，但如果只有一个点，必须补
+              if (weightData.length === 1) {
+                  // 只有一个点，无法画线。我们在它前一天补一个同样的值或者初始值
+                  const prevIndex = Math.max(0, firstValidIndex - 1);
+                  if (!plotData[prevIndex].weight) {
+                      plotData[prevIndex].weight = userProfile.startWeight;
+                  }
+              }
           }
 
-          const validWeights = plotData.filter(d => d.weight > 0).map(d => d.weight);
+          // 重新获取用于绘图的有效点
+          const points = plotData.map((day, index) => {
+              if (!day.weight || day.weight <= 0) return null;
+              return { index, weight: day.weight };
+          }).filter(p => p !== null);
+
+          const validWeights = points.map(p => p.weight);
           const minW = validWeights.length ? Math.min(...validWeights, userProfile.goalWeight) - 1 : 70;
           const maxW = validWeights.length ? Math.max(...validWeights, userProfile.startWeight) + 1 : 90;
           const range = maxW - minW || 1;
           
           const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
 
-          const points = plotData.map((day, index) => {
-              if (!day.weight || day.weight <= 0) return null;
-              const x = (index / 13) * 100; 
-              const y = 100 - ((day.weight - minW) / range) * 100;
-              return { x, y, val: day.weight };
-          }).filter(p => p !== null);
+          // 生成坐标
+          const svgPoints = points.map(p => { 
+             const x = (p.index / 13) * 100; 
+             const y = 100 - ((p.weight - minW) / range) * 100; 
+             return {x, y, val: p.weight}; 
+          });
 
-          // SVG 渐变路径 (需要闭合)
+          // SVG 路径
+          const linePath = svgPoints.map(p => `${p.x},${p.y}`).join(" ");
+          
+          // 渐变区域
           let areaPath = "";
-          if (points.length > 0) {
-              const first = points[0];
-              const last = points[points.length - 1];
-              const lineCmd = points.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join(" ");
-              areaPath = `${lineCmd} L${last.x},100 L${first.x},100 Z`;
+          if (svgPoints.length > 1) {
+              const first = svgPoints[0];
+              const last = svgPoints[svgPoints.length - 1];
+              areaPath = `${linePath} L${last.x},100 L${first.x},100 Z`;
           }
-          const linePath = points.map(p => `${p.x},${p.y}`).join(" ");
 
+          // 达标率计算
           const calculateScore = (day) => {
               if (day.isVirtual) return 0;
               let score = 0;
@@ -299,7 +329,6 @@
 
           return (
             <div className="space-y-6 animate-fade-in pb-24 p-4">
-              
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-5"><TrendingDown className="w-24 h-24" /></div>
                 <div className="relative z-10">
@@ -312,7 +341,7 @@
                 </div>
               </div>
 
-              {/* 趋势追踪 (UI升级版) */}
+              {/* 趋势追踪 (修复版) */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 体重趋势 (近14天)</h2>
                 <div className="h-44 w-full relative px-2 select-none">
@@ -326,16 +355,12 @@
                                 <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
                             </linearGradient>
                         </defs>
-                        {/* 渐变填充区 */}
-                        {points.length > 1 && <path d={areaPath} fill="url(#chartGradient)" />}
+                        {svgPoints.length > 1 && <path d={areaPath} fill="url(#chartGradient)" />}
+                        {svgPoints.length > 1 && <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={linePath} strokeLinecap="round" strokeLinejoin="round" />}
                         
-                        {/* 折线 */}
-                        {points.length > 1 && <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={linePath} strokeLinecap="round" strokeLinejoin="round" />}
-                        
-                        {/* 数据点 */}
-                        {points.map((p, i) => (
+                        {svgPoints.map((p, i) => (
                              <g key={i}>
-                                <circle cx={`${p.x}%`} cy={`${p.y}%`} r="4" className="fill-white stroke-indigo-500 stroke-2" />
+                                <circle cx={`${p.x}%`} cy={`${p.y}%`} r={i === svgPoints.length - 1 ? 5 : 4} className={`stroke-2 ${i === svgPoints.length - 1 ? 'fill-indigo-600 stroke-white animate-pulse' : 'fill-white stroke-indigo-500'}`} />
                                 <text x={`${p.x}%`} y={`${p.y}%`} dy="-12" textAnchor="middle" className="text-[10px] fill-slate-500 font-bold">{p.val}</text>
                              </g>
                         ))}
@@ -343,10 +368,10 @@
                 </div>
               </div>
 
-              {/* 每日达标评分 (UI修复版：增加轨道高度) */}
+              {/* 每日达标评分 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近7天)</h2>
-                <div className="flex justify-between items-end gap-2 h-40"> {/* 增加容器高度 */}
+                <div className="flex justify-between items-end gap-2 h-40">
                   {historyData.slice(-7).map((day, i) => {
                     const score = calculateScore(day);
                     let color = "bg-slate-200";
@@ -359,12 +384,9 @@
                     return (
                         <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group relative h-full">
                             <div className={`text-[10px] font-bold mb-1 transition-all ${score > 0 ? 'text-slate-600' : 'text-transparent'}`}>{score}</div>
-                            
-                            {/* 关键修复：给柱子一个固定的轨道高度 h-24 (96px)，确保100%就是最高 */}
                             <div className="w-full h-24 bg-slate-50 rounded-md relative flex items-end overflow-hidden">
                                 <div className={`w-full transition-all duration-700 ease-out ${color} ${isToday ? 'ring-2 ring-inset ring-indigo-200' : ''}`} style={{height: `${score}%`}}></div>
                             </div>
-                            
                             <div className={`text-[10px] font-mono scale-75 whitespace-nowrap ${isToday ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>{day.date.slice(5).replace('-','/')}</div>
                         </div>
                     );
@@ -548,12 +570,22 @@
                     setUser(currentUser);
                     setLoading(false);
                     if (currentUser) {
+                        // 初始化加载：先从LocalStorage尝试读取，提高首屏速度
+                        const localData = localStorage.getItem('fred_logs_backup');
+                        if (localData) {
+                            try { setLogs(JSON.parse(localData)); } catch(e) {}
+                        }
+
                         const docRef = doc(db, "users", currentUser.uid);
                         const unsubDoc = onSnapshot(docRef, (docSnap) => {
                             if (docSnap.exists()) {
                                 const data = docSnap.data();
                                 if (data.profile) setUserProfile(data.profile);
-                                if (data.logs) setLogs(data.logs);
+                                if (data.logs) {
+                                    setLogs(data.logs);
+                                    // 同步回本地备份
+                                    localStorage.setItem('fred_logs_backup', JSON.stringify(data.logs));
+                                }
                                 setSetupMode(false);
                             } else { setSetupMode(true); }
                         });
@@ -563,7 +595,11 @@
                 return () => unsubscribe();
             }, []);
 
+            // 核心修复：双重写入 (Local + Cloud)
             const saveToCloud = async (newProfile, newLogs) => {
+                // 1. 先存本地，保证不丢
+                if (newLogs) localStorage.setItem('fred_logs_backup', JSON.stringify(newLogs));
+                
                 if (!user) return;
                 setIsSyncing(true);
                 try { 
@@ -573,20 +609,23 @@
                     }, { merge: true }); 
                 } catch (e) { 
                     console.error("同步失败", e); 
+                    alert("云端同步失败，但数据已保存至本地。请检查网络权限。");
                 } finally {
                     setIsSyncing(false);
                 }
             };
             
             const saveProfile = (newProfile) => { setUserProfile(newProfile); saveToCloud(newProfile, null); setSetupMode(false); };
-            const saveLog = (dateStr, data) => { const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; setLogs(newLogs); saveToCloud(null, newLogs); };
             
-            // 核心修复：确保读取日志时也使用正确的日期键
+            const saveLog = (dateStr, data) => { 
+                const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } }; 
+                setLogs(newLogs); 
+                saveToCloud(null, newLogs); 
+            };
+            
             const getLog = (dateStr) => {
                 if (logs[dateStr]) return logs[dateStr];
-                // 如果是过去，但无数据，视为虚拟填充
                 const todayStr = formatDate(new Date());
-                // 字符串比较日期（YYYY-MM-DD格式下是安全的）
                 if (dateStr < todayStr) return { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false, foodLog: [], swaps: {} };
                 return { weight: null, protein: 0, calories: 0, workoutCompleted: false, foodLog: [], swaps: {} };
             };
