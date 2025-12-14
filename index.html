@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (V5.8 终极趋势修复)</title>
+    <title>Fred 健康营养计划 (V5.9 对齐修复版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -33,7 +33,7 @@
 
     <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden relative sm:rounded-xl sm:h-[90vh] sm:border sm:border-slate-200">
         <div class="flex h-full items-center justify-center text-slate-400 text-sm animate-pulse">
-            正在初始化 Fred 的健康数据...
+            正在连接 Fred 的云端数据库...
         </div>
     </div>
 
@@ -44,7 +44,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, AlertOctagon, WifiOff
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, AlertOctagon, Wifi, WifiOff
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -175,6 +175,7 @@
             return `${year}-${month}-${day}`;
         };
 
+        // --- Auth Component ---
         const LoginScreen = ({ onLogin }) => {
             const [error, setError] = useState(null);
             
@@ -202,7 +203,7 @@
                     </button>
                     
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.8 Final Trend Fix</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.9 Aligned Trends</div>
                 </div>
             );
         };
@@ -225,7 +226,9 @@
               </div>
 
               <div className="pt-8 border-t border-slate-100">
-                  <button onClick={handleReset} className="w-full py-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-100"><RefreshCw className="w-4 h-4"/> 重置计划并重新开始</button>
+                  <button onClick={handleReset} className="w-full py-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-100">
+                      <RefreshCw className="w-4 h-4"/> 重置计划并重新开始
+                  </button>
                   <p className="text-xs text-slate-400 mt-2 text-center">注意：这将清空所有历史数据，让你重新设定初始体重。</p>
               </div>
             </div>
@@ -236,12 +239,15 @@
           const historyData = useMemo(() => {
             const days = [];
             const today = new Date();
+            // 核心修改：上下都使用14天数据，确保X轴对齐
             for (let i = 13; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
                 const dateStr = formatDate(d);
                 let log = logs[dateStr];
-                if (!log) { log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; }
+                if (!log) { 
+                    log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; 
+                }
                 days.push({ date: dateStr, ...log, dayObj: d });
             }
             return days;
@@ -250,14 +256,14 @@
           const currentWeight = historyData.slice().reverse().find(d => d.weight > 0)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
           
-          // --- 趋势图核心修复 (固定参照系) ---
           let plotData = [...historyData];
-          
+          if (plotData.every(d => !d.weight)) {
+              plotData[0].weight = userProfile.startWeight; // Fallback
+          }
+
           const validWeights = plotData.filter(d => d.weight > 0).map(d => d.weight);
-          
-          // 修复：确保图表 Y 轴始终包含初始值和目标值
-          const minW = Math.min(...validWeights, userProfile.goalWeight) - 1;
-          const maxW = Math.max(...validWeights, userProfile.startWeight) + 1;
+          const minW = validWeights.length ? Math.min(...validWeights, userProfile.goalWeight) - 1 : 70;
+          const maxW = validWeights.length ? Math.max(...validWeights, userProfile.startWeight) + 1 : 90;
           const range = maxW - minW || 1;
           const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
 
@@ -266,7 +272,7 @@
               return { index, weight: day.weight };
           }).filter(p => p !== null);
 
-          // SVG 坐标生成 (修复：使用 viewBox 0 0 100 100 自动缩放)
+          // SVG 坐标生成
           const svgPoints = points.map(p => { 
              const x = (p.index / 13) * 100; 
              const y = 100 - ((p.weight - minW) / range) * 100; 
@@ -308,10 +314,15 @@
 
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
                 <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 体重趋势 (近14天)</h2>
-                <div className="h-44 w-full relative px-2 select-none">
+                <div className="h-44 w-full relative px-1 select-none">
                     <div className="absolute w-full border-t border-dashed border-green-300 left-0 transition-all duration-500" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}></div>
                     <div className="absolute right-0 text-[10px] text-green-600 -mt-4 bg-white px-1 transition-all duration-500 font-bold" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}>Goal {userProfile.goalWeight}</div>
                     
+                    {/* 网格参考线 */}
+                    <div className="absolute inset-0 flex justify-between pointer-events-none">
+                        {[...Array(14)].map((_, i) => <div key={i} className="w-px h-full bg-slate-50"></div>)}
+                    </div>
+
                     <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <defs>
                             <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
@@ -332,20 +343,31 @@
               </div>
 
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近7天)</h2>
-                <div className="flex justify-between items-end gap-2 h-40">
-                  {historyData.slice(-7).map((day, i) => {
+                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近14天)</h2>
+                {/* 核心修改：改为 14 列，与上面体重图完全对齐 */}
+                <div className="flex justify-between items-end gap-1 h-40">
+                  {historyData.map((day, i) => {
                     const score = calculateScore(day);
                     let color = "bg-slate-200";
                     if (score >= 80) color = "bg-green-500"; else if (score >= 50) color = "bg-indigo-400"; else if (score > 0) color = "bg-orange-300";
                     const isToday = day.date === formatDate(new Date());
+                    
+                    // 仅显示特定日期的标签以防拥挤 (每隔2天显示，或首尾显示)
+                    const showLabel = i === 0 || i === 6 || i === 13;
+
                     return (
                         <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group relative h-full">
-                            <div className={`text-[10px] font-bold mb-1 transition-all ${score > 0 ? 'text-slate-600' : 'text-transparent'}`}>{score}</div>
-                            <div className="w-full h-24 bg-slate-50 rounded-md relative flex items-end overflow-hidden">
-                                <div className={`w-full transition-all duration-700 ease-out ${color} ${isToday ? 'ring-2 ring-inset ring-indigo-200' : ''}`} style={{height: `${score}%`}}></div>
+                            {/* 分数提示 */}
+                            <div className={`text-[8px] font-bold mb-1 transition-all ${score > 0 ? 'text-slate-600' : 'text-transparent'}`}>{score}</div>
+                            
+                            <div className="w-full h-24 bg-slate-50 rounded-sm relative flex items-end overflow-hidden">
+                                <div className={`w-full transition-all duration-700 ease-out ${color} ${isToday ? 'ring-1 ring-inset ring-indigo-300' : ''}`} style={{height: `${score}%`}}></div>
                             </div>
-                            <div className={`text-[10px] font-mono scale-75 whitespace-nowrap ${isToday ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>{day.date.slice(5).replace('-','/')}</div>
+                            
+                            {/* 日期标签：只显示部分 */}
+                            <div className={`text-[8px] font-mono scale-90 whitespace-nowrap ${showLabel ? 'opacity-100' : 'opacity-0'} ${isToday ? 'text-indigo-600 font-bold opacity-100' : 'text-slate-300'}`}>
+                                {day.date.slice(8)}日
+                            </div>
                         </div>
                     );
                   })}
@@ -384,16 +406,13 @@
                 <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><ChevronRight className="w-5 h-5" /></button>
               </div>
 
-              {/* 错误提示条 (如果云端同步失败) */}
               {syncError && <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex gap-3 text-xs text-red-700 items-start animate-bounce"><WifiOff className="w-4 h-4 shrink-0 mt-0.5" /><span>云端同步失败 (权限不足)。请去 Firebase 控制台 Rules 设置 "allow read, write: if request.auth != null;" 临时测试。数据已保存在本地。</span></div>}
 
-              {/* 训练卡片 */}
               <div className={`bg-white p-5 rounded-3xl shadow-sm border-l-4 transition-all ${log.workoutCompleted ? 'border-green-500 shadow-green-100' : 'border-indigo-500'}`}>
                 <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-900 flex items-center gap-2"><Dumbbell className="w-5 h-5 text-indigo-500" /> 今日训练</h3><button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted, isVirtual: false })} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${log.workoutCompleted ? 'bg-green-500 text-white shadow-lg shadow-green-200 transform scale-105' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{log.workoutCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300"></div>}{log.workoutCompleted ? '已完成' : '打卡'}</button></div>
                 <div className="space-y-4">{dayPlan.exercises.map((ex, i) => { const swapIndex = log.swaps ? log.swaps[i] : undefined; const isSwapped = swapIndex !== undefined; const displayEx = isSwapped ? ex.alternatives[swapIndex] : ex; const hasAlts = ex.alternatives && ex.alternatives.length > 0; return (<div key={i} className="flex justify-between items-start border-b border-slate-50 pb-3 last:border-0 group"><div className="flex-1"><div className="flex items-center gap-2"><span className={`text-sm font-bold ${isSwapped ? 'text-indigo-600' : 'text-slate-700'}`}>{displayEx.name}</span>{isSwapped && <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-md font-medium">替代</span>}</div><div className="text-xs text-slate-400 font-mono mt-1 flex gap-2"><span className="bg-slate-50 px-1.5 rounded">{displayEx.sets}</span><span>{displayEx.note}</span></div></div>{hasAlts && <button onClick={() => toggleExercise(i)} className="p-2 text-slate-200 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all"><ArrowLeftRight className="w-4 h-4" /></button>}</div>);})}</div>
               </div>
 
-              {/* 今日主厨推荐 */}
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-3xl shadow-sm border border-orange-100">
                   <div className="flex items-center gap-2 mb-3 font-bold text-orange-800"><ChefHat className="w-5 h-5"/> 主厨推荐 ({dayPlan.type === 'Rest' ? '低碳恢复' : '增肌充能'})</div>
                   <div className="space-y-3">
@@ -404,7 +423,6 @@
                   </div>
               </div>
 
-              {/* 饮食与身体 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm">
                 <div className="flex items-center gap-2 mb-4 font-bold text-slate-800"><Utensils className="w-5 h-5 text-indigo-500" /> 饮食与身体数据</div>
                 <div className="bg-indigo-50 p-3 rounded-2xl mb-6 border border-indigo-100 relative"><textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="AI 帮我算：午饭吃了一碗牛肉面..." className="w-full bg-white p-3 text-sm rounded-xl outline-none border border-transparent focus:border-indigo-300 h-20 resize-none mb-2 placeholder-indigo-200 text-indigo-900" /><button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1.5 transition-colors shadow-lg shadow-indigo-200">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI 识别并添加</button></div>
@@ -595,5 +613,4 @@
 
     </script>
 </body>
-
 </html>
