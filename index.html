@@ -9,7 +9,7 @@ import {
 // --- 常量与默认配置 ---
 const DEFAULT_API_KEY = "sk-72fba3190e5c4147bdd1b27fcab574dc";
 
-// 基础训练计划 (核心逻辑不变)
+// 基础训练计划 (核心逻辑)
 const BASE_PLAN = {
   1: { title: "胸部 & 三头肌 (推力)", type: "Strength", warmup: "10分钟 椭圆机", exercises: [
     { name: "动态伸展", sets: "5分钟", note: "肩袖预热" },
@@ -105,6 +105,9 @@ export default function FredFitnessTrackerV4() {
     
     // 4. 强制选中今天
     setSelectedDate(new Date());
+
+    // 调试日志
+    console.log("FredFitnessTracker V4 Mounted");
   }, []);
 
   // --- 核心操作 ---
@@ -213,19 +216,39 @@ export default function FredFitnessTrackerV4() {
         <div className="space-y-4 bg-slate-800 p-6 rounded-2xl">
           <div>
             <label className="block text-xs text-slate-400 mb-1">初始体重 (kg) - 基于InBody数据</label>
-            <input type="number" value={userProfile.startWeight} onChange={e => setUserProfile({...userProfile, startWeight: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+            <input 
+              type="number" 
+              value={userProfile.startWeight} 
+              onChange={e => setUserProfile({...userProfile, startWeight: parseFloat(e.target.value) || 0})} 
+              className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"
+            />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">目标体重 (kg)</label>
-            <input type="number" value={userProfile.goalWeight} onChange={e => setUserProfile({...userProfile, goalWeight: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+            <input 
+              type="number" 
+              value={userProfile.goalWeight} 
+              onChange={e => setUserProfile({...userProfile, goalWeight: parseFloat(e.target.value) || 0})} 
+              className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"
+            />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">身高 (cm)</label>
-            <input type="number" value={userProfile.height} onChange={e => setUserProfile({...userProfile, height: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+            <input 
+              type="number" 
+              value={userProfile.height} 
+              onChange={e => setUserProfile({...userProfile, height: parseFloat(e.target.value) || 0})} 
+              className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"
+            />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">计划开始日期</label>
-            <input type="date" value={userProfile.startDate} onChange={e => setUserProfile({...userProfile, startDate: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+            <input 
+              type="date" 
+              value={userProfile.startDate} 
+              onChange={e => setUserProfile({...userProfile, startDate: e.target.value})} 
+              className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"
+            />
           </div>
         </div>
 
@@ -413,8 +436,9 @@ export default function FredFitnessTrackerV4() {
                <div className="flex justify-between items-end">
                  <input 
                    type="number" 
+                   min="0"
                    value={log.protein || ''} 
-                   onChange={e => saveLog(formatDate(selectedDate), { protein: Number(e.target.value), isVirtual: false })}
+                   onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0, isVirtual: false })}
                    className="w-16 bg-transparent font-mono font-bold text-lg outline-none text-slate-800"
                    placeholder="0"
                  />
@@ -429,9 +453,10 @@ export default function FredFitnessTrackerV4() {
                <div className="text-xs text-slate-400 mb-1">热量 (kcal)</div>
                <div className="flex justify-between items-end">
                  <input 
-                   type="number" 
+                   type="number"
+                   min="0" 
                    value={log.calories || ''} 
-                   onChange={e => saveLog(formatDate(selectedDate), { calories: Number(e.target.value), isVirtual: false })}
+                   onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0, isVirtual: false })}
                    className="w-16 bg-transparent font-mono font-bold text-lg outline-none text-slate-800"
                    placeholder="0"
                  />
@@ -448,9 +473,11 @@ export default function FredFitnessTrackerV4() {
                <span className="text-sm font-bold text-slate-700">今日晨重</span>
                <div className="flex items-center gap-2">
                  <input 
-                   type="number" 
+                   type="number"
+                   min="0"
+                   step="0.1" 
                    value={log.weight || ''} 
-                   onChange={e => saveLog(formatDate(selectedDate), { weight: Number(e.target.value), isVirtual: false })}
+                   onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0, isVirtual: false })}
                    className="w-20 bg-slate-100 p-1.5 rounded text-center font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
                    placeholder="80.0"
                  />
@@ -486,7 +513,7 @@ export default function FredFitnessTrackerV4() {
         
         <div>
           <label className="text-xs font-bold text-slate-500">目标体重</label>
-          <input type="number" value={userProfile.goalWeight} onChange={e => {const p = {...userProfile, goalWeight: e.target.value}; saveProfile(p)}} className="w-full border-b border-slate-200 py-2 outline-none font-mono text-sm"/>
+          <input type="number" value={userProfile.goalWeight} onChange={e => {const p = {...userProfile, goalWeight: parseFloat(e.target.value)}; saveProfile(p)}} className="w-full border-b border-slate-200 py-2 outline-none font-mono text-sm"/>
         </div>
 
         <button onClick={() => setSetupMode(true)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold">
