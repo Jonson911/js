@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fred 健康营养计划 (V5.3 修正版)</title>
+    <title>Fred 健康营养计划 (V5.4 完美趋势版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -44,7 +44,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, Wifi
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -169,7 +169,6 @@
         };
 
         // --- 核心修复：本地化日期处理函数 (解决时区Bug) ---
-        // 之前用 toISOString() 会导致 UTC 时间偏差，现在强制用本地时间
         const formatDate = (date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -205,7 +204,7 @@
                     </button>
                     
                     {error && <div className="mt-4 text-red-400 text-xs bg-red-900/30 p-2 rounded">{error}</div>}
-                    <div className="mt-12 text-xs text-slate-600">V5.3 Timezone Fix Edition</div>
+                    <div className="mt-12 text-xs text-slate-600">V5.4 Perfect Trend</div>
                 </div>
             );
         };
@@ -238,70 +237,70 @@
         );
 
         const HistoryTab = ({ userProfile, logs }) => {
+          // --- 核心修复：基于真实日期的连续数据流 ---
           const historyData = useMemo(() => {
-            const start = new Date(userProfile.startDate);
-            const end = new Date(); 
+            // 强制显示最近14天，无论是否有数据，都要生成占位符
             const days = [];
-            // 如果开始日期是今天，确保至少显示今天
-            if (start > end) start = end; 
+            const today = new Date();
             
-            // 构建完整的日期序列 (包含今天)
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-              const dateStr = formatDate(d);
-              let log = logs[dateStr];
-              if (!log) { 
-                  // 如果是今天且无记录，显示空白；如果是过去无记录，显示虚拟
-                  log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; 
-              }
-              days.push({ date: dateStr, ...log, dayObj: new Date(d) });
+            // 生成过去13天 + 今天的日期数组
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const dateStr = formatDate(d);
+                let log = logs[dateStr];
+                
+                // 如果没有数据，填充一个虚拟对象
+                if (!log) { 
+                    log = { isVirtual: true, weight: null, calories: 0, protein: 0, workoutCompleted: false }; 
+                }
+                days.push({ date: dateStr, ...log, dayObj: d });
             }
             return days;
-          }, [logs, userProfile.startDate]);
+          }, [logs]); // 只依赖 logs 更新
 
           const currentWeight = historyData.slice().reverse().find(d => d.weight > 0)?.weight || userProfile.startWeight;
           const progress = (userProfile.startWeight - currentWeight).toFixed(1);
           
-          // 趋势图数据准备 (修复：确保即使只有一个点也能显示)
+          // --- 趋势图修复：精准坐标映射 ---
+          // 1. 获取所有有体重的点
           const weightData = historyData.filter(d => d.weight > 0);
           
-          // 确保包含初始体重，防止空图
-          const plotData = [...weightData];
-          if (plotData.length === 0) {
-              plotData.push({weight: userProfile.startWeight, date: userProfile.startDate});
-          } else if (plotData[0].date !== userProfile.startDate && plotData.length < 2) {
-              // 如果只有一个点且不是第一天，尝试把第一天加进去画线（可选，这里为了简单只画点）
-          }
-
-          const minW = Math.min(...plotData.map(d=>d.weight), userProfile.goalWeight) - 1;
-          const maxW = Math.max(...plotData.map(d=>d.weight), userProfile.startWeight) + 1;
-          const range = maxW - minW || 1; // 防止除以0
+          // 2. 计算极值
+          const minW = Math.min(...weightData.map(d=>d.weight), userProfile.goalWeight) - 1;
+          const maxW = Math.max(...weightData.map(d=>d.weight), userProfile.startWeight) + 1;
+          const range = maxW - minW || 1;
           
-          const svgPoints = plotData.map((d, i) => { 
-             const x = (i / (Math.max(1, plotData.length - 1))) * 100; 
-             const y = 100 - ((d.weight - minW) / range) * 100; 
-             return `${x},${y}`; 
-          }).join(" ");
-          
+          // 3. 目标线位置
           const goalY = 100 - ((userProfile.goalWeight - minW) / range) * 100;
 
-          // 修复：综合达标率计算逻辑 (独立计分)
+          // 4. 生成 SVG 点 (关键：X轴必须基于 14 天的总长度，而不是 filtering 后的长度)
+          // 只有这样，时间轴才是对齐的
+          const points = historyData.map((day, index) => {
+              if (!day.weight || day.weight <= 0) return null;
+              
+              const x = (index / 13) * 100; // 0% 到 100% 分布在14天
+              const y = 100 - ((day.weight - minW) / range) * 100;
+              return { x, y, val: day.weight };
+          }).filter(p => p !== null);
+
+          const svgPath = points.map(p => `${p.x},${p.y}`).join(" ");
+
+          // --- 达标率修复：每日独立评分 ---
           const calculateScore = (day) => {
-              // 只要有数据就计算，不区分 virtual (除了未来日期)
-              if (day.isVirtual && day.calories === 0 && !day.workoutCompleted) return 0;
+              // 只要不是未来日期，且没有任何记录，就是0分
+              if (day.isVirtual) return 0;
               
               let score = 0;
-              // 训练占 40分
               if (day.workoutCompleted) score += 40;
               
-              // 蛋白质占 30分 (达到目标的 80% 即给分)
               const proTarget = userProfile.targetProtein || 160;
               if (day.protein >= proTarget * 0.8) score += 30;
               else if (day.protein > 0) score += (day.protein / proTarget) * 30;
               
-              // 热量占 30分 (有记录且不严重超标即得分)
               const calTarget = userProfile.targetCaloriesTrain || 2300;
               if (day.calories > 0 && day.calories <= calTarget + 400) score += 30;
-              else if (day.calories > 0) score += 10; // 超标也给辛苦分
+              else if (day.calories > 0) score += 10;
               
               return Math.min(100, Math.round(score));
           };
@@ -309,6 +308,7 @@
           return (
             <div className="space-y-6 animate-fade-in pb-24 p-4">
               
+              {/* 核心指标卡 */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-5"><TrendingDown className="w-24 h-24" /></div>
                 <div className="relative z-10">
@@ -321,50 +321,64 @@
                 </div>
               </div>
 
+              {/* 趋势追踪 (修复版) */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 趋势追踪</h2>
-                <div className="h-32 w-full relative px-2">
+                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-500" /> 体重趋势 (近14天)</h2>
+                <div className="h-40 w-full relative px-2 select-none">
                     {/* 目标线 */}
-                    <div className="absolute w-full border-t border-dashed border-green-300 left-0" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}></div>
-                    <div className="absolute right-0 text-[10px] text-green-600 -mt-4 bg-white px-1" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}>目标 {userProfile.goalWeight}</div>
+                    <div className="absolute w-full border-t border-dashed border-green-300 left-0 transition-all duration-500" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}></div>
+                    <div className="absolute right-0 text-[10px] text-green-600 -mt-4 bg-white px-1 transition-all duration-500" style={{top: `${Math.min(100, Math.max(0, goalY))}%`}}>目标 {userProfile.goalWeight}</div>
                     
                     <svg className="w-full h-full overflow-visible">
                         {/* 只有当点数大于1时才画线 */}
-                        {plotData.length > 1 && (
-                            <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={svgPoints} strokeLinecap="round" strokeLinejoin="round" />
+                        {points.length > 1 && (
+                            <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={svgPath} strokeLinecap="round" strokeLinejoin="round" />
                         )}
                         {/* 画数据点 */}
-                        {plotData.map((d, i) => {
-                             const x = (i / (Math.max(1, plotData.length - 1))) * 100;
-                             const y = 100 - ((d.weight - minW) / range) * 100;
-                             return <circle key={i} cx={`${x}%`} cy={`${y}%`} r="4" className="fill-white stroke-indigo-500 stroke-2" />
-                        })}
+                        {points.map((p, i) => (
+                             <g key={i}>
+                                <circle cx={`${p.x}%`} cy={`${p.y}%`} r="4" className="fill-white stroke-indigo-500 stroke-2" />
+                                {/* 数值标签 */}
+                                <text x={`${p.x}%`} y={`${p.y}%`} dy="-10" textAnchor="middle" className="text-[10px] fill-slate-500 font-bold">{p.val}</text>
+                             </g>
+                        ))}
                     </svg>
                 </div>
-                <div className="text-center text-xs text-slate-300 mt-2">实时体重曲线 (自动同步)</div>
+                <div className="flex justify-between text-[10px] text-slate-300 mt-2 px-1">
+                    <span>14天前</span>
+                    <span>今天</span>
+                </div>
               </div>
 
-              {/* 修复：按天显示的达标率 */}
+              {/* 每日达标评分 (固定7列) */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 每日达标评分 (近7天)</h2>
+                <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-orange-500" /> 综合达标率 (近7天)</h2>
                 <div className="flex justify-between items-end h-32 gap-2">
+                  {/* 只取最后7天 */}
                   {historyData.slice(-7).map((day, i) => {
                     const score = calculateScore(day);
-                    let color = "bg-slate-200";
-                    if (score >= 80) color = "bg-green-500";
-                    else if (score >= 50) color = "bg-indigo-400";
-                    else if (score > 0) color = "bg-orange-300";
+                    let color = "bg-slate-100";
+                    let height = "8%"; // 默认最小高度
+                    
+                    if (score > 0) {
+                        height = `${score}%`;
+                        if (score >= 80) color = "bg-green-500";
+                        else if (score >= 50) color = "bg-indigo-400";
+                        else color = "bg-orange-300";
+                    }
                     
                     const isToday = day.date === formatDate(new Date());
 
                     return (
                         <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
                             {/* 显示分数值 */}
-                            <div className={`text-[10px] font-bold ${score > 0 ? 'text-slate-600' : 'text-transparent'}`}>{score}</div>
+                            <div className={`text-[10px] font-bold mb-1 transition-all ${score > 0 ? 'text-slate-600' : 'text-transparent'}`}>{score}</div>
                             
-                            <div className={`w-full rounded-md transition-all duration-500 ${color} ${isToday ? 'ring-2 ring-indigo-200' : ''}`} style={{height: `${Math.max(8, score)}%`}}></div>
+                            {/* 柱子 */}
+                            <div className={`w-full rounded-md transition-all duration-500 ${color} ${isToday ? 'ring-2 ring-offset-2 ring-indigo-200' : ''}`} style={{height: height}}></div>
                             
-                            <div className="text-[10px] text-slate-400 font-mono scale-75 whitespace-nowrap">{day.date.slice(5).replace('-','/')}</div>
+                            {/* 日期 */}
+                            <div className={`text-[10px] font-mono scale-75 whitespace-nowrap ${isToday ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>{day.date.slice(5).replace('-','/')}</div>
                         </div>
                     );
                   })}
