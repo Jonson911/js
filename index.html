@@ -1,0 +1,522 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
+  Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
+  RefreshCw, MessageSquare, Settings, Send, Loader2, Save, 
+  ChevronLeft, History, CheckCircle2, XCircle
+} from 'lucide-react';
+
+// --- 常量与默认配置 ---
+const DEFAULT_API_KEY = "sk-72fba3190e5c4147bdd1b27fcab574dc";
+
+// 基础训练计划 (核心逻辑不变)
+const BASE_PLAN = {
+  1: { title: "胸部 & 三头肌 (推力)", type: "Strength", warmup: "10分钟 椭圆机", exercises: [
+    { name: "动态伸展", sets: "5分钟", note: "肩袖预热" },
+    { name: "平板杠铃卧推", sets: "4组 x 10次", note: "核心动作" },
+    { name: "上斜哑铃卧推", sets: "4组 x 12次", note: "上胸" },
+    { name: "绳索下压", sets: "4组 x 15次", note: "三头肌" },
+    { name: "悬垂举腿", sets: "4组 x 力竭", note: "腹肌" }
+  ]},
+  2: { title: "背部 & 二头肌 (拉力)", type: "Strength", warmup: "10分钟 划船机", exercises: [
+    { name: "肩部激活", sets: "5分钟", note: "弹力带" },
+    { name: "高位下拉", sets: "4组 x 12次", note: "背阔肌" },
+    { name: "坐姿划船", sets: "4组 x 12次", note: "背部厚度" },
+    { name: "杠铃弯举", sets: "4组 x 12次", note: "二头肌" },
+    { name: "平板支撑", sets: "4组 x 60秒", note: "核心" }
+  ]},
+  3: { title: "腿部 & 肩部 (强代谢)", type: "HighIntensity", warmup: "10分钟 单车", exercises: [
+    { name: "髋关节灵活性", sets: "5分钟", note: "必做" },
+    { name: "深蹲/腿举", sets: "5组 x 10次", note: "王牌动作" },
+    { name: "哑铃推举", sets: "4组 x 12次", note: "三角肌前束" },
+    { name: "侧平举", sets: "5组 x 15次", note: "中束" },
+    { name: "腿屈伸", sets: "3组 x 15次", note: "线条" }
+  ]},
+  4: { title: "有氧燃脂 & 腹肌", type: "Cardio", warmup: "5分钟 慢跑", exercises: [
+    { name: "卷腹", sets: "4组 x 20次", note: "上腹" },
+    { name: "俄罗斯转体", sets: "4组 x 20次", note: "侧腹" },
+    { name: "反向卷腹", sets: "4组 x 15次", note: "下腹" },
+    { name: "真空腹", sets: "5组 x 30秒", note: "腹横肌" }
+  ]},
+  5: { title: "深度恢复 (REST)", type: "Rest", warmup: "无", exercises: [
+    { name: "泡沫轴放松", sets: "20分钟", note: "全身" },
+    { name: "温水澡", sets: "15分钟", note: "循环" }
+  ]},
+  6: { title: "HIIT & 全身循环", type: "HIIT", warmup: "5分钟 动态", exercises: [
+    { name: "波比跳", sets: "10个 x 5组", note: "心肺" },
+    { name: "壶铃摇摆", sets: "20个 x 4组", note: "后链" },
+    { name: "战绳", sets: "30秒 x 4组", note: "代谢" },
+    { name: "核心三合一", sets: "3组", note: "腹肌" }
+  ]},
+  0: { title: "户外耐力", type: "ActiveRecovery", warmup: "动态拉伸", exercises: [
+    { name: "户外骑行/爬山", sets: "60分钟+", note: "Zone 2心率" },
+    { name: "全身拉伸", sets: "20分钟", note: "静态" }
+  ]}
+};
+
+// 工具函数：日期处理
+const formatDate = (date) => date.toISOString().split('T')[0];
+const getDaysDiff = (start, end) => Math.floor((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24));
+
+export default function FredFitnessTrackerV4() {
+  // --- 状态管理 ---
+  const [setupMode, setSetupMode] = useState(false); // 是否处于初始设置模式
+  const [userProfile, setUserProfile] = useState({
+    name: "Fred",
+    height: 182,
+    startWeight: 80.0,
+    goalWeight: 74.0,
+    startDate: "2025-12-14", // 默认
+    age: 41,
+    targetProtein: 160,
+    targetCaloriesRest: 1800,
+    targetCaloriesTrain: 2300
+  });
+
+  const [activeTab, setActiveTab] = useState('log'); // 默认进记录页
+  const [logs, setLogs] = useState({});
+  const [selectedDate, setSelectedDate] = useState(new Date()); // 默认今天
+  const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
+  
+  // AI 交互状态
+  const [loading, setLoading] = useState(false);
+  const [foodInput, setFoodInput] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+
+  // --- 初始化逻辑 ---
+  useEffect(() => {
+    // 1. 读取 Profile
+    const savedProfile = localStorage.getItem('fred_profile_v4');
+    if (savedProfile) {
+      setUserProfile(JSON.parse(savedProfile));
+    } else {
+      setSetupMode(true); // 没数据，进入设置向导
+    }
+
+    // 2. 读取 Logs
+    const savedLogs = localStorage.getItem('fred_logs_v4');
+    if (savedLogs) {
+      setLogs(JSON.parse(savedLogs));
+    }
+
+    // 3. 读取 Key
+    const savedKey = localStorage.getItem('fred_deepseek_key');
+    if (savedKey) setApiKey(savedKey);
+    
+    // 4. 强制选中今天
+    setSelectedDate(new Date());
+  }, []);
+
+  // --- 核心操作 ---
+  const saveProfile = (newProfile) => {
+    setUserProfile(newProfile);
+    localStorage.setItem('fred_profile_v4', JSON.stringify(newProfile));
+    setSetupMode(false);
+  };
+
+  const saveLog = (dateStr, data) => {
+    const newLogs = { ...logs, [dateStr]: { ...logs[dateStr], ...data, date: dateStr } };
+    setLogs(newLogs);
+    localStorage.setItem('fred_logs_v4', JSON.stringify(newLogs));
+  };
+
+  const getLog = (dateStr) => {
+    // 如果该日期有记录，返回记录
+    if (logs[dateStr]) return logs[dateStr];
+
+    // 如果没有记录（忘记输入），返回“默认填充数据”
+    // 逻辑：如果是过去的日子，视为休息日 + 基础维持热量
+    // 如果是将来，返回空
+    const todayStr = formatDate(new Date());
+    if (dateStr < todayStr) {
+      return {
+        isVirtual: true, // 标记为虚拟填充数据
+        weight: null, // 体重不瞎填，断开显示
+        calories: 2000, // 默认估算值
+        protein: 80, // 默认吃的不够
+        workoutCompleted: false,
+        foodLog: []
+      };
+    }
+
+    return {
+      weight: null,
+      protein: 0,
+      calories: 0,
+      workoutCompleted: false,
+      foodLog: []
+    };
+  };
+
+  // --- AI 接口 ---
+  const callDeepSeek = async (systemPrompt, userPrompt) => {
+    if (!apiKey) { alert("请在设置中检查 API Key"); return null; }
+    try {
+      setLoading(true);
+      const response = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.7
+        })
+      });
+      const data = await response.json();
+      setLoading(false);
+      return data.choices[0].message.content;
+    } catch (error) {
+      setLoading(false);
+      alert("AI 连接失败: " + error.message);
+      return null;
+    }
+  };
+
+  const handleFoodAnalysis = async () => {
+    if (!foodInput.trim()) return;
+    const prompt = `分析食物：${foodInput}。返回JSON格式：{"calories": number, "protein": number, "analysis": "string"}`;
+    const res = await callDeepSeek("营养师，只回JSON", prompt);
+    if (res) {
+      try {
+        const cleanJson = res.replace(/```json/g, '').replace(/```/g, '').trim();
+        const data = JSON.parse(cleanJson);
+        const current = getLog(formatDate(selectedDate));
+        saveLog(formatDate(selectedDate), {
+          calories: (current.calories || 0) + data.calories,
+          protein: (current.protein || 0) + data.protein,
+          foodLog: [...(current.foodLog || []), { time: '刚刚', text: foodInput, cal: data.calories, pro: data.protein }]
+        });
+        setFoodInput("");
+      } catch (e) { alert("解析失败"); }
+    }
+  };
+
+  const generateDailySummary = async () => {
+    const current = getLog(formatDate(selectedDate));
+    const prompt = `日期:${formatDate(selectedDate)}, 体重:${current.weight || '未测'}, 热量:${current.calories}, 蛋白:${current.protein}, 训练:${current.workoutCompleted?'是':'否'}。给Fred一段简短犀利的点评。`;
+    const res = await callDeepSeek("严格健身教练", prompt);
+    if (res) saveLog(formatDate(selectedDate), { aiAnalysis: res });
+  };
+
+  // --- 界面组件 ---
+
+  // 1. 初始化设置页
+  if (setupMode) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white p-6 flex flex-col justify-center animate-fade-in">
+        <div className="mb-8 text-center">
+          <Activity className="w-16 h-16 text-indigo-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2">欢迎, Fred</h1>
+          <p className="text-slate-400">让我们校准你的初始数据，以获得最精准的AI分析。</p>
+        </div>
+        
+        <div className="space-y-4 bg-slate-800 p-6 rounded-2xl">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">初始体重 (kg) - 基于InBody数据</label>
+            <input type="number" value={userProfile.startWeight} onChange={e => setUserProfile({...userProfile, startWeight: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">目标体重 (kg)</label>
+            <input type="number" value={userProfile.goalWeight} onChange={e => setUserProfile({...userProfile, goalWeight: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">身高 (cm)</label>
+            <input type="number" value={userProfile.height} onChange={e => setUserProfile({...userProfile, height: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">计划开始日期</label>
+            <input type="date" value={userProfile.startDate} onChange={e => setUserProfile({...userProfile, startDate: e.target.value})} className="w-full bg-slate-700 p-3 rounded text-lg font-bold outline-none border border-transparent focus:border-indigo-500"/>
+          </div>
+        </div>
+
+        <button onClick={() => saveProfile(userProfile)} className="mt-8 bg-indigo-600 w-full py-4 rounded-xl font-bold text-lg hover:bg-indigo-500 transition-colors flex items-center justify-center gap-2">
+          开启计划 <ChevronRight />
+        </button>
+      </div>
+    );
+  }
+
+  // 2. 历史与趋势页
+  const HistoryTab = () => {
+    // 构建连续的数据流（处理缺失日期）
+    const historyData = useMemo(() => {
+      const start = new Date(userProfile.startDate);
+      const end = new Date();
+      const days = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = formatDate(d);
+        const log = getLog(dateStr); // 这里会自动处理缺失数据
+        days.push({ date: dateStr, ...log, dayObj: new Date(d) });
+      }
+      return days;
+    }, [logs, userProfile.startDate]);
+
+    const currentWeight = historyData.slice().reverse().find(d => d.weight)?.weight || userProfile.startWeight;
+    const progress = (userProfile.startWeight - currentWeight).toFixed(1);
+
+    return (
+      <div className="space-y-6 animate-fade-in pb-20">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+           <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+             <TrendingDown className="w-5 h-5 text-indigo-600" /> 核心指标
+           </h2>
+           <div className="grid grid-cols-3 gap-4 text-center">
+             <div className="p-3 bg-slate-50 rounded-xl">
+               <div className="text-xs text-slate-400">初始</div>
+               <div className="font-mono font-bold text-slate-700">{userProfile.startWeight}</div>
+             </div>
+             <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+               <div className="text-xs text-indigo-400">当前</div>
+               <div className="font-mono font-bold text-indigo-700 text-xl">{currentWeight}</div>
+             </div>
+             <div className="p-3 bg-slate-50 rounded-xl">
+               <div className="text-xs text-slate-400">目标</div>
+               <div className="font-mono font-bold text-slate-700">{userProfile.goalWeight}</div>
+             </div>
+           </div>
+           <div className="mt-4 bg-gray-100 rounded-full h-2 overflow-hidden">
+             <div className="bg-green-500 h-full transition-all duration-1000" style={{width: `${Math.min(100, Math.max(0, (progress / (userProfile.startWeight - userProfile.goalWeight)) * 100))}%`}}></div>
+           </div>
+           <div className="text-center text-xs text-slate-400 mt-1">已完成 {Math.abs(progress)}kg 的减脂目标</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+           <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+             <Calendar className="w-5 h-5 text-orange-500" /> 
+             执行热力图
+           </h2>
+           <div className="grid grid-cols-7 gap-1">
+             {['一','二','三','四','五','六','日'].map(d => <div key={d} className="text-center text-xs text-slate-300 font-bold mb-2">{d}</div>)}
+             {historyData.slice(-28).map((day, i) => { // 只显示最近4周
+               let color = "bg-slate-100"; // 默认/缺失
+               if (!day.isVirtual) {
+                 if (day.workoutCompleted && day.protein >= 120) color = "bg-green-500"; // 完美
+                 else if (day.workoutCompleted) color = "bg-blue-400"; // 只练了
+                 else if (day.calories > 2500) color = "bg-red-400"; // 爆碳
+                 else color = "bg-slate-200"; // 休息/平庸
+               }
+               return (
+                 <div key={i} className={`aspect-square rounded-md ${color} relative group`}>
+                   <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 bg-black text-white text-[10px] p-1 rounded whitespace-nowrap z-10">
+                     {day.date.slice(5)}: {day.weight ? day.weight+'kg' : '未测'}
+                   </div>
+                 </div>
+               )
+             })}
+           </div>
+           <div className="flex gap-3 justify-center mt-4 text-[10px] text-slate-400">
+             <span className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded"></div> 完美</span>
+             <span className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-400 rounded"></div> 达标</span>
+             <span className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-200 rounded"></div> 休息</span>
+             <span className="flex items-center gap-1"><div className="w-2 h-2 bg-red-400 rounded"></div> 超标</span>
+           </div>
+        </div>
+
+        {/* 简单体重趋势图 */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+          <h2 className="font-bold text-slate-800 mb-2">体重趋势</h2>
+          <div className="h-32 flex items-end justify-between gap-1 px-2 pt-4">
+             {historyData.slice(-14).map((day, i) => {
+               if (!day.weight) return <div key={i} className="flex-1"></div>;
+               const h = Math.max(10, (day.weight - 70) * 5); // scale
+               return (
+                 <div key={i} className="flex-1 bg-indigo-200 rounded-t hover:bg-indigo-500 transition-colors relative group" style={{height: `${h}%`}}>
+                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] text-slate-500 opacity-0 group-hover:opacity-100">{day.weight}</div>
+                 </div>
+               )
+             })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 3. 记录与主页
+  const LoggerTab = () => {
+    const log = getLog(formatDate(selectedDate));
+    const dayPlan = BASE_PLAN[selectedDate.getDay()];
+    const isToday = formatDate(selectedDate) === formatDate(new Date());
+
+    return (
+      <div className="space-y-4 animate-fade-in pb-20">
+        {/* 日期导航 */}
+        <div className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm sticky top-0 z-20 border border-slate-100">
+          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="text-center">
+            <div className="font-bold text-slate-800 flex items-center justify-center gap-2">
+              {isToday && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
+              {selectedDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+            </div>
+            <div className="text-[10px] text-indigo-500 font-bold uppercase mt-0.5">
+               {dayPlan.title}
+            </div>
+          </div>
+          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); }} className="p-2 bg-slate-50 rounded-full text-slate-600">
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        {log.isVirtual && (
+          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg flex gap-2 text-xs text-yellow-800">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>这天没有手动记录，系统已自动按“维持期”数据填充统计。如有需要请手动修改。</span>
+          </div>
+        )}
+
+        {/* 训练卡片 */}
+        <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${log.workoutCompleted ? 'border-green-500' : 'border-indigo-500'}`}>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-bold text-slate-900">今日训练</h3>
+            <button 
+              onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted, isVirtual: false })}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 ${log.workoutCompleted ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}
+            >
+              {log.workoutCompleted ? <CheckCircle2 className="w-3 h-3"/> : <div className="w-3 h-3 rounded-full border border-slate-400"></div>}
+              {log.workoutCompleted ? '已完成' : '点击打卡'}
+            </button>
+          </div>
+          <div className="space-y-2">
+            {dayPlan.exercises.map((ex, i) => (
+              <div key={i} className="flex justify-between items-center border-b border-slate-50 pb-2 last:border-0">
+                <span className="text-sm font-medium text-slate-700">{ex.name}</span>
+                <span className="text-xs text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded">{ex.sets}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 饮食 & 体重 */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm">
+           <div className="flex items-center gap-2 mb-4 font-bold text-slate-800">
+             <Utensils className="w-5 h-5 text-orange-500" /> 摄入与身体
+           </div>
+
+           {/* AI 输入 */}
+           <div className="bg-indigo-50 p-3 rounded-xl mb-6 border border-indigo-100">
+             <textarea 
+               value={foodInput}
+               onChange={e => setFoodInput(e.target.value)}
+               placeholder="AI记录：午饭吃了一碗牛肉面，加个蛋..."
+               className="w-full bg-white p-2 text-sm rounded-lg outline-none border border-indigo-200 focus:border-indigo-500 h-16 resize-none mb-2"
+             />
+             <button onClick={handleFoodAnalysis} disabled={loading} className="w-full bg-indigo-600 text-white py-1.5 rounded-lg text-xs font-bold flex justify-center items-center gap-1">
+               {loading ? <Loader2 className="w-3 h-3 animate-spin"/> : <BrainCircuit className="w-3 h-3"/>}
+               智能识别并添加
+             </button>
+           </div>
+
+           <div className="grid grid-cols-2 gap-4 mb-4">
+             <div className="bg-slate-50 p-3 rounded-xl">
+               <div className="text-xs text-slate-400 mb-1">蛋白质 (g)</div>
+               <div className="flex justify-between items-end">
+                 <input 
+                   type="number" 
+                   value={log.protein || ''} 
+                   onChange={e => saveLog(formatDate(selectedDate), { protein: Number(e.target.value), isVirtual: false })}
+                   className="w-16 bg-transparent font-mono font-bold text-lg outline-none text-slate-800"
+                   placeholder="0"
+                 />
+                 <span className="text-[10px] text-slate-400">/ {userProfile.targetProtein}</span>
+               </div>
+               <div className="w-full bg-slate-200 h-1 mt-1 rounded-full overflow-hidden">
+                 <div className="bg-indigo-500 h-full" style={{width: `${Math.min(100, (log.protein/userProfile.targetProtein)*100)}%`}}></div>
+               </div>
+             </div>
+
+             <div className="bg-slate-50 p-3 rounded-xl">
+               <div className="text-xs text-slate-400 mb-1">热量 (kcal)</div>
+               <div className="flex justify-between items-end">
+                 <input 
+                   type="number" 
+                   value={log.calories || ''} 
+                   onChange={e => saveLog(formatDate(selectedDate), { calories: Number(e.target.value), isVirtual: false })}
+                   className="w-16 bg-transparent font-mono font-bold text-lg outline-none text-slate-800"
+                   placeholder="0"
+                 />
+                 <span className="text-[10px] text-slate-400">/ {dayPlan.type === 'Rest' ? userProfile.targetCaloriesRest : userProfile.targetCaloriesTrain}</span>
+               </div>
+               <div className="w-full bg-slate-200 h-1 mt-1 rounded-full overflow-hidden">
+                 <div className={`h-full ${log.calories > 2500 ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${Math.min(100, (log.calories/2200)*100)}%`}}></div>
+               </div>
+             </div>
+           </div>
+
+           <div className="border-t border-slate-100 pt-4">
+             <div className="flex justify-between items-center">
+               <span className="text-sm font-bold text-slate-700">今日晨重</span>
+               <div className="flex items-center gap-2">
+                 <input 
+                   type="number" 
+                   value={log.weight || ''} 
+                   onChange={e => saveLog(formatDate(selectedDate), { weight: Number(e.target.value), isVirtual: false })}
+                   className="w-20 bg-slate-100 p-1.5 rounded text-center font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                   placeholder="80.0"
+                 />
+                 <span className="text-xs text-slate-500">kg</span>
+               </div>
+             </div>
+           </div>
+        </div>
+
+        {/* 每日 AI 总结 */}
+        {log.aiAnalysis ? (
+          <div className="bg-slate-800 p-4 rounded-2xl shadow-sm text-slate-300 text-sm italic border-l-4 border-indigo-500">
+             "{log.aiAnalysis}"
+          </div>
+        ) : (
+          <button onClick={generateDailySummary} className="w-full py-3 border border-dashed border-slate-300 text-slate-400 rounded-xl text-xs hover:bg-slate-50 transition-colors">
+            点击生成今日 AI 教练总结
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const SettingsTab = () => (
+    <div className="p-6 space-y-6 animate-fade-in bg-white h-full">
+      <h2 className="text-xl font-bold flex items-center gap-2"><Settings className="w-6 h-6" /> 设置</h2>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="text-xs font-bold text-slate-500">API Key</label>
+          <input type="password" value={apiKey} onChange={e => {setApiKey(e.target.value); localStorage.setItem('fred_deepseek_key', e.target.value)}} className="w-full border-b border-slate-200 py-2 outline-none font-mono text-sm"/>
+        </div>
+        
+        <div>
+          <label className="text-xs font-bold text-slate-500">目标体重</label>
+          <input type="number" value={userProfile.goalWeight} onChange={e => {const p = {...userProfile, goalWeight: e.target.value}; saveProfile(p)}} className="w-full border-b border-slate-200 py-2 outline-none font-mono text-sm"/>
+        </div>
+
+        <button onClick={() => setSetupMode(true)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold">
+          重新运行初始化向导
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="max-w-md mx-auto h-screen flex flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
+      <header className="bg-white p-4 shadow-sm z-30 flex justify-between items-center">
+        <h1 className="font-black text-xl italic text-slate-800 tracking-tighter">FRED<span className="text-indigo-600">.PRO</span></h1>
+        <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600"><Settings className="w-5 h-5"/></button>
+      </header>
+
+      <main className="flex-1 overflow-y-auto scrollbar-hide">
+        {showSettings ? <SettingsTab /> : (activeTab === 'log' ? <LoggerTab /> : <HistoryTab />)}
+      </main>
+
+      <nav className="bg-white border-t border-slate-100 flex justify-around py-2 pb-5 z-30 shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
+        <button onClick={() => {setActiveTab('history'); setShowSettings(false)}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}>
+          <History className="w-6 h-6" />
+          <span className="text-[10px] font-bold mt-1">历史/趋势</span>
+        </button>
+        <button onClick={() => {setActiveTab('log'); setShowSettings(false); setSelectedDate(new Date())}} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'log' && !showSettings ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}>
+          <Activity className="w-6 h-6" />
+          <span className="text-[10px] font-bold mt-1">今日打卡</span>
+        </button>
+      </nav>
+    </div>
+  );
+}
