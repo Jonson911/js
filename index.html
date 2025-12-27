@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FRED.FITNESS (V9.3 终极修复版)</title>
+    <title>FRED.FITNESS (V9.5 中文智能版)</title>
     
-    <!-- 1. 错误捕获 -->
+    <!-- 1. 控制台净化 -->
     <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args.join(' ');
+            if (msg.includes('cdn.tailwindcss.com') || msg.includes('in-browser Babel transformer')) return;
+            origWarn.apply(console, args);
+        };
         window.onerror = function(msg, url, line, col, error) {
             const box = document.getElementById('error-box');
             if (box) {
                 box.style.display = 'block';
-                box.innerHTML += `<div><strong>Error:</strong> ${msg}<br><small>${line}:${col}</small></div>`;
+                box.innerHTML += `<div><strong>Error:</strong> ${msg}</div>`;
                 console.error("Global Error:", error);
             }
             return false;
@@ -38,7 +44,7 @@
     <style>
         body { 
             font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif; 
-            background-color: #f1f5f9;
+            background-color: #f8fafc;
             color: #1e293b;
         }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -77,7 +83,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, Target, Zap, Info, Ruler, WifiOff
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, Target, Zap, Info, Ruler, WifiOff, Leaf
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -108,7 +114,7 @@
         
         const DEFAULT_PROFILE = {
             name: "Fred", currentWeight: 80.0, startWeight: 80.0, goalWeight: 74.0, startDate: new Date().toISOString().split('T')[0], 
-            targetProtein: 160, targetCaloriesTrain: 2200, targetFiber: 30,
+            targetProtein: 176, targetCaloriesTrain: 2200, targetFiber: 30,
             age: 30, height: 180, gender: 'male', activity: 'moderate', goalType: 'cut'
         };
 
@@ -144,8 +150,8 @@
                     return (
                         <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-50 text-slate-800">
                             <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-                            <h2 className="text-xl font-bold mb-2">系统崩溃</h2>
-                            <p className="text-xs text-slate-500 mb-6 bg-slate-100 p-2 rounded w-full overflow-hidden text-center">{this.state.error?.toString()}</p>
+                            <h2 className="text-xl font-bold mb-2">系统遇到问题</h2>
+                            <p className="text-xs text-slate-500 mb-6 bg-slate-100 p-2 rounded text-center">{this.state.error?.toString()}</p>
                             <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">重置修复</button>
                         </div>
                     );
@@ -165,8 +171,8 @@
                 <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-white animate-fade-in">
                     <Activity className="w-16 h-16 text-indigo-500 mb-6" />
                     <h1 className="text-3xl font-black mb-2 tracking-widest">FRED.FITNESS</h1>
-                    <p className="text-slate-400 mb-10 text-center text-sm">V9.3 终极修复版</p>
-                    <button onClick={handleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 hover:scale-105 transition-all shadow-lg">使用 Google 账号登录</button>
+                    <p className="text-slate-400 mb-10 text-center text-sm font-medium tracking-wide">V9.5 中文智能版</p>
+                    <button onClick={handleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all shadow-lg">使用 Google 账号登录</button>
                 </div>
             );
         };
@@ -175,32 +181,65 @@
             const [localProfile, setLocalProfile] = useState(userProfile || DEFAULT_PROFILE);
             useEffect(() => { if(userProfile) setLocalProfile(userProfile); }, [userProfile]);
             const handleChange = (field, val) => setLocalProfile(prev => ({...prev, [field]: val}));
+            
+            // 修复：真实的 AI 算法 (Mifflin-St Jeor)
             const autoCalculate = () => {
                 const w = parseFloat(localProfile.currentWeight) || 80;
-                let goalCalories = Math.round(w * 24); 
-                if (localProfile.goalType === 'cut') goalCalories -= 300; else if (localProfile.goalType === 'bulk') goalCalories += 300;
-                setLocalProfile(prev => ({ ...prev, targetCaloriesTrain: goalCalories, targetProtein: Math.round(w*2), targetFiber: 30 }));
-                alert("⚡️ AI 已推算建议目标");
+                const h = parseFloat(localProfile.height) || 180;
+                const a = parseFloat(localProfile.age) || 30;
+                const gender = localProfile.gender || 'male';
+                
+                // BMR 计算
+                let bmr = (10 * w) + (6.25 * h) - (5 * a);
+                bmr += (gender === 'male' ? 5 : -161);
+                
+                // 活动系数 (设为中等活跃 1.55, 适合健身人群)
+                const tdee = bmr * 1.55;
+                
+                // 目标调整
+                let goalCalories = tdee;
+                if (localProfile.goalType === 'cut') goalCalories -= 500; // 减脂缺口
+                else if (localProfile.goalType === 'bulk') goalCalories += 300; // 增肌盈余
+                
+                // 营养素分配
+                const protein = Math.round(w * 2.2); // 增肌/减脂保护肌肉，高蛋白
+                const fiber = 35; // 提升饱腹感
+
+                setLocalProfile(prev => ({ 
+                    ...prev, 
+                    targetCaloriesTrain: Math.round(goalCalories), 
+                    targetProtein: protein, 
+                    targetFiber: fiber 
+                }));
+                
+                alert(`⚡️ 智能推算完成！\n\n基础代谢(BMR): ${Math.round(bmr)}\n总消耗(TDEE): ${Math.round(tdee)}\n\n建议目标：\n热量: ${Math.round(goalCalories)} kcal\n蛋白质: ${protein} g\n纤维: ${fiber} g`);
             };
+
             return (
               <div className="p-5 space-y-6 animate-fade-in bg-[#f8f9fa] h-full overflow-y-auto pb-24">
-                <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-800">账户设置</h2><button onClick={autoCalculate} className="bg-orange-500 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><Zap className="w-3 h-3"/> AI推算</button></div>
+                <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-800">账户设置</h2><button onClick={autoCalculate} className="bg-orange-500 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><Zap className="w-3 h-3"/> 智能推算</button></div>
                 <div className="space-y-4">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                       <div className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><Ruler className="w-4 h-4 text-indigo-500"/> 身体参数</div>
                       <div className="grid grid-cols-2 gap-3">
                           <div><label className="text-[10px] text-slate-400 uppercase mb-1 block">体重 (kg)</label><input type="number" value={localProfile.currentWeight} onChange={e=>handleChange('currentWeight', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm font-bold" /></div>
-                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block">目标 (kg)</label><input type="number" value={localProfile.goalWeight} onChange={e=>handleChange('goalWeight', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm font-bold" /></div>
                           <div><label className="text-[10px] text-slate-400 uppercase mb-1 block">身高 (cm)</label><input type="number" value={localProfile.height} onChange={e=>handleChange('height', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm" /></div>
-                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block">体脂 (%)</label><input type="number" value={localProfile.bodyFat} onChange={e=>handleChange('bodyFat', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm" /></div>
+                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block">年龄</label><input type="number" value={localProfile.age} onChange={e=>handleChange('age', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm" /></div>
+                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block">性别</label><select value={localProfile.gender} onChange={e=>handleChange('gender', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm"><option value="male">男</option><option value="female">女</option></select></div>
+                      </div>
+                      <div className="mt-2">
+                          <label className="text-[10px] text-slate-400 uppercase mb-1 block">阶段目标</label>
+                          <select value={localProfile.goalType} onChange={e=>handleChange('goalType', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm font-bold text-slate-700 outline-none">
+                              <option value="cut">🔥 极速减脂 (热量缺口大)</option><option value="recomp">⚖️ 增肌减脂 (热量平衡)</option><option value="bulk">💪 力量增肌 (热量盈余)</option>
+                          </select>
                       </div>
                   </div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                      <div className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><Target className="w-4 h-4 text-indigo-500"/> 营养目标</div>
+                      <div className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><Target className="w-4 h-4 text-indigo-500"/> 营养目标 (自动/手动)</div>
                       <div className="grid grid-cols-3 gap-2">
-                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block text-center">热量</label><input type="number" value={localProfile.targetCaloriesTrain} onChange={e=>handleChange('targetCaloriesTrain', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm text-center font-mono font-bold" /></div>
-                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block text-center">蛋白质</label><input type="number" value={localProfile.targetProtein} onChange={e=>handleChange('targetProtein', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm text-center font-mono font-bold" /></div>
-                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block text-center">纤维</label><input type="number" value={localProfile.targetFiber} onChange={e=>handleChange('targetFiber', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm text-center font-mono font-bold" /></div>
+                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block text-center">热量 (kcal)</label><input type="number" value={localProfile.targetCaloriesTrain} onChange={e=>handleChange('targetCaloriesTrain', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm text-center font-mono font-bold" /></div>
+                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block text-center">蛋白质 (g)</label><input type="number" value={localProfile.targetProtein} onChange={e=>handleChange('targetProtein', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm text-center font-mono font-bold" /></div>
+                          <div><label className="text-[10px] text-slate-400 uppercase mb-1 block text-center">纤维 (g)</label><input type="number" value={localProfile.targetFiber} onChange={e=>handleChange('targetFiber', parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-sm text-center font-mono font-bold" /></div>
                       </div>
                   </div>
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
@@ -352,9 +391,8 @@
           const isToday = formatDate(selectedDate) === formatDate(new Date());
           useEffect(() => { setFoodInput(""); }, [selectedDate]);
 
-          // --- 核心修复：空值保护 ---
+          // --- 修复：空值保护 ---
           const getMealPlan = () => {
-              // 确保 dayPlan 存在，否则给个默认值
               const safeDayPlan = dayPlan || BASE_PLAN[1];
               let type = safeDayPlan.type; 
               if (type !== 'Strength' && type !== 'HighIntensity') type = 'Rest'; 
@@ -416,7 +454,6 @@
                 </div>
               </div>
 
-              {/* 修复：使用 ?. 防止白屏 */}
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-3xl shadow-sm border border-orange-100">
                   <div className="flex items-center gap-2 mb-3 font-bold text-orange-800"><ChefHat className="w-5 h-5"/> 主厨推荐</div>
                   <div className="space-y-3">
@@ -428,20 +465,23 @@
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-2 mb-5 font-bold text-slate-800"><Utensils className="w-5 h-5 text-indigo-500" /> 饮食记录</div>
+                <div className="flex items-center gap-2 mb-5 font-bold text-slate-800"><Utensils className="w-5 h-5 text-indigo-500" /> 饮食与身体数据</div>
                 <div className="bg-slate-50 p-1 rounded-xl mb-6 border border-slate-200 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                   <textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="记录全天饮食：早饭...午饭..." className="w-full bg-transparent p-4 text-sm rounded-xl outline-none h-24 resize-none mb-10 placeholder-slate-400 text-slate-700" />
                   <button onClick={handleFoodAnalysis} disabled={loading} className="absolute bottom-2 right-2 bg-slate-800 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} 识别</button>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mb-6">
+                
+                {/* 修复：4格布局，增加纤维显示 */}
+                <div className="grid grid-cols-2 gap-3 mb-6">
                   <div className="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">蛋白质</div><div className="flex justify-center items-end gap-0.5"><input type="number" value={log.protein || ''} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0 })} className="w-10 bg-transparent font-mono font-bold text-lg outline-none text-slate-800 text-center p-0" placeholder="0" /><span className="text-[8px] text-slate-400 mb-1">/{userProfile.targetProtein}</span></div></div>
                   <div className="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">热量</div><div className="flex justify-center items-end gap-0.5"><input type="number" value={log.calories || ''} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0 })} className="w-12 bg-transparent font-mono font-bold text-lg outline-none text-slate-800 text-center p-0" placeholder="0" /><span className="text-[8px] text-slate-400 mb-1">/{userProfile.targetCaloriesTrain}</span></div></div>
+                  <div className="bg-green-50 p-3 rounded-xl text-center border border-green-100"><div className="text-[10px] font-bold text-green-600 uppercase mb-1 flex justify-center gap-1"><Leaf className="w-3 h-3"/>纤维</div><div className="flex justify-center items-end gap-0.5"><input type="number" value={log.fiber || ''} onChange={e => saveLog(formatDate(selectedDate), { fiber: parseFloat(e.target.value) || 0 })} className="w-10 bg-transparent font-mono font-bold text-lg outline-none text-green-700 text-center p-0" placeholder="0" /><span className="text-[8px] text-green-500 mb-1">/{userProfile.targetFiber}</span></div></div>
                   <div className="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div className="text-[10px] font-bold text-slate-400 uppercase mb-1">体重</div><div className="flex justify-center items-end gap-0.5"><input type="number" step="0.1" value={log.weight || ''} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0 })} className="w-14 bg-transparent font-mono font-bold text-lg outline-none text-slate-800 text-center p-0" placeholder="0.0" /></div></div>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3 pt-2">
-                  <button onClick={()=>saveLog(formatDate(selectedDate), {})} className="col-span-1 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors shadow-sm"><Save className="w-4 h-4"/> 暂存</button>
+                  <button onClick={()=>saveLog(formatDate(selectedDate), {})} className="col-span-1 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors shadow-sm"><Save className="w-4 h-4"/> 暂存进度</button>
                   {isToday && <button onClick={()=>handleDayEndAnalysis(foodInput)} disabled={loading} className="col-span-2 py-3.5 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95">{loading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Target className="w-4 h-4"/>} {loading ? "AI 思考中..." : "结束打卡 & 全量分析"}</button>}
               </div>
               {log.aiAnalysis && <div className="mt-4 bg-slate-200 p-4 rounded-xl text-xs text-slate-600 italic leading-relaxed border-l-4 border-slate-400">💡 教练点评：{log.aiAnalysis}</div>}
@@ -461,6 +501,7 @@
             const [aiLoading, setAiLoading] = useState(false);
             const [foodInput, setFoodInput] = useState("");
             const [apiKey, setApiKey] = useState(localStorage.getItem('fred_deepseek_key') || DEFAULT_DEEPSEEK_KEY);
+            const [syncError, setSyncError] = useState(null);
 
             useEffect(() => {
                 if (!auth) { setLoading(false); return; }
@@ -470,7 +511,6 @@
                         onSnapshot(doc(db, "users", u.uid), (doc) => {
                             if (doc.exists()) {
                                 const d = doc.data();
-                                // Merge data to prevent blank screen
                                 if (d.profile) setUserProfile(prev => ({...prev, ...d.profile}));
                                 if (d.logs) setLogs(d.logs);
                                 setSetupMode(false);
@@ -481,7 +521,12 @@
                 return () => unsubscribe();
             }, []);
 
-            const saveToCloud = (p, l) => { if(user && db) setDoc(doc(db, "users", user.uid), {profile: p||userProfile, logs: l||logs}, {merge:true}); };
+            const saveToCloud = (p, l) => { 
+                if(user && db) {
+                    setDoc(doc(db, "users", user.uid), {profile: p||userProfile, logs: l||logs}, {merge:true})
+                    .catch(e => setSyncError("云端同步失败，请检查网络或权限"));
+                }
+            };
             const saveProfile = (p) => { setUserProfile(p); saveToCloud(p, null); setSetupMode(false); setShowSettings(false); };
             const saveLog = (d, data) => { const nl = {...logs, [d]: {...logs[d], ...data}}; setLogs(nl); saveToCloud(null, nl); };
 
@@ -508,11 +553,18 @@
                 const today = formatDate(selectedDate);
                 const tmr = new Date(selectedDate); tmr.setDate(tmr.getDate()+1);
                 
+                // 修复：强制中文指令
                 const prompt = `Today: ${today}. Food: ${foodText}. Goal: ${userProfile.goalType}.
-                Task: 1.Analyze nutrition. 2.Review today. 3.Plan tomorrow's workout & diet.
-                Return JSON: {"nutrition":{cal:int,pro:int,fiber:int}, "feedback":"str", "tomorrow":{"workout":{title,exercises:[{name,sets,note}]}, "diet":{breakfast:{main,alt},lunch:{main,alt},dinner:{main,alt},snack:{main,alt}}}}`;
+                Stats: Weight ${userProfile.currentWeight}kg.
+                Task: 
+                1. Analyze nutrition of food (calories, protein, fiber).
+                2. Give feedback for today (IN CHINESE).
+                3. Create workout & diet plan for tomorrow (IN CHINESE).
+                
+                Return JSON ONLY: 
+                {"nutrition":{cal:int,pro:int,fiber:int}, "feedback":"中文点评", "tomorrow":{"workout":{title:"中文标题",exercises:[{name:"中文动作",sets:"组数",note:"要点"}]}, "diet":{breakfast:{main,alt},lunch:{main,alt},dinner:{main,alt},snack:{main,alt}}}}`;
 
-                const res = await callDeepSeek("Expert Coach. JSON Only.", prompt);
+                const res = await callDeepSeek("You are an expert fitness coach. You MUST respond in Simplified Chinese. Return JSON only.", prompt);
                 if (res) {
                     try {
                         const json = JSON.parse(res.replace(/```json|```/g, '').trim());
@@ -522,7 +574,7 @@
                             protein: (curLog.protein||0) + json.nutrition.pro,
                             fiber: (curLog.fiber||0) + json.nutrition.fiber,
                             aiAnalysis: json.feedback,
-                            workoutCompleted: true 
+                            // 修复：不自动勾选 workoutCompleted，由用户手动点
                         });
                         saveLog(formatDate(tmr), { generatedPlan: json.tomorrow.workout, generatedDiet: json.tomorrow.diet });
                         alert("✅ 今日结算完成！明日计划已生成。");
@@ -551,7 +603,11 @@
                         <div className="h-full flex flex-col bg-[#f1f5f9] font-sans text-slate-900 overflow-hidden relative">
                             <header className="bg-white/80 p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md absolute top-0 w-full border-b border-slate-200">
                                 <div className="flex items-center gap-2">{user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-100"/>}<div><h1 className="font-bold text-lg text-slate-800 tracking-widest">FRED.FITNESS</h1></div></div>
-                                <div className="flex gap-4"><button onClick={() => signOut(auth)}><LogOut className="w-5 h-5 text-slate-400 hover:text-red-500 transition-colors"/></button><button onClick={() => setShowSettings(!showSettings)}><Settings className="w-5 h-5 text-slate-600 hover:text-indigo-600 transition-colors"/></button></div>
+                                <div className="flex gap-4">
+                                    {syncError && <WifiOff className="w-5 h-5 text-red-500 animate-pulse" />}
+                                    <button onClick={() => signOut(auth)}><LogOut className="w-5 h-5 text-slate-400 hover:text-red-500 transition-colors"/></button>
+                                    <button onClick={() => setShowSettings(!showSettings)}><Settings className="w-5 h-5 text-slate-600 hover:text-indigo-600 transition-colors"/></button>
+                                </div>
                             </header>
                             <main className="flex-1 overflow-y-auto scrollbar-hide pt-16">
                                 {setupMode ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} handleReset={handleReset} /> : 
