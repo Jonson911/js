@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FRED.FITNESS (V9.6 矩阵修复版)</title>
+    <title>FRED.FITNESS (V9.7 视觉优化版)</title>
     
     <!-- 1. 控制台净化 -->
     <script>
@@ -171,7 +171,7 @@
                 <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-white animate-fade-in">
                     <Activity className="w-16 h-16 text-indigo-500 mb-6" />
                     <h1 className="text-3xl font-black mb-2 tracking-widest">FRED.FITNESS</h1>
-                    <p className="text-slate-400 mb-10 text-center text-sm font-medium tracking-wide">V9.6 矩阵修复版</p>
+                    <p className="text-slate-400 mb-10 text-center text-sm font-medium tracking-wide">V9.7 视觉优化版</p>
                     <button onClick={handleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all shadow-lg">使用 Google 账号登录</button>
                 </div>
             );
@@ -411,12 +411,22 @@
             saveLog(formatDate(selectedDate), { swaps: newSwaps, isVirtual: false });
           };
 
-          // Helper: 获取颜色类
-          const getProgressColor = (current, target) => {
-              const ratio = (current || 0) / (target || 1);
-              if (ratio >= 1.0) return "bg-green-50 border-green-200 text-green-800"; // 达标
-              if (ratio >= 0.7) return "bg-yellow-50 border-yellow-200 text-yellow-800"; // 接近
-              return "bg-red-50 border-red-200 text-red-800"; // 未达标
+          // Helper: 获取颜色类 (V9.7 新逻辑)
+          const getProgressColor = (current, target, isCalorie = false) => {
+              if (!current || current === 0) return "bg-slate-50 border-slate-100 text-slate-800";
+              const ratio = current / (target || 1);
+              
+              if (isCalorie) {
+                  // 热量逻辑: <100% 绿, >100% 黄, >110% 红
+                  if (ratio > 1.1) return "bg-red-50 border-red-200 text-red-800"; // 严重超标
+                  if (ratio > 1.0) return "bg-yellow-50 border-yellow-200 text-yellow-800"; // 轻微超标
+                  return "bg-green-50 border-green-200 text-green-800"; // 制造缺口 (好!)
+              } else {
+                  // 营养素逻辑: >=100% 绿, >=70% 黄, <70% 红
+                  if (ratio >= 1.0) return "bg-green-50 border-green-200 text-green-800"; // 达标
+                  if (ratio >= 0.7) return "bg-yellow-50 border-yellow-200 text-yellow-800"; // 接近
+                  return "bg-red-50 border-red-200 text-red-800"; // 不足
+              }
           };
 
           return (
@@ -475,21 +485,21 @@
                   <button onClick={handleFoodAnalysis} disabled={loading} className="absolute bottom-2 right-2 bg-slate-800 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} 识别</button>
                 </div>
                 
-                {/* 修复：4格矩阵 + 智能变色 */}
+                {/* 修复：4格矩阵 + 智能变色 + 加宽输入框 (w-20) */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   {/* 蛋白质 */}
                   <div className={`p-3 rounded-xl text-center border transition-colors ${getProgressColor(log.protein, userProfile.targetProtein)}`}>
                     <div className="text-[10px] font-bold uppercase mb-1 opacity-70">蛋白质</div>
                     <div className="flex justify-center items-end gap-0.5">
-                      <input type="number" value={log.protein || ''} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0 })} className="w-10 bg-transparent font-mono font-bold text-lg outline-none text-center p-0" placeholder="0" />
+                      <input type="number" value={log.protein || ''} onChange={e => saveLog(formatDate(selectedDate), { protein: parseFloat(e.target.value) || 0 })} className="w-20 bg-transparent font-mono font-bold text-lg outline-none text-center p-0" placeholder="0" />
                       <span className="text-[8px] opacity-60 mb-1">/{userProfile.targetProtein}</span>
                     </div>
                   </div>
-                  {/* 热量 */}
-                  <div className={`p-3 rounded-xl text-center border transition-colors ${getProgressColor(log.calories, userProfile.targetCaloriesTrain)}`}>
+                  {/* 热量 (限制型逻辑) */}
+                  <div className={`p-3 rounded-xl text-center border transition-colors ${getProgressColor(log.calories, userProfile.targetCaloriesTrain, true)}`}>
                     <div className="text-[10px] font-bold uppercase mb-1 opacity-70">热量</div>
                     <div className="flex justify-center items-end gap-0.5">
-                      <input type="number" value={log.calories || ''} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0 })} className="w-12 bg-transparent font-mono font-bold text-lg outline-none text-center p-0" placeholder="0" />
+                      <input type="number" value={log.calories || ''} onChange={e => saveLog(formatDate(selectedDate), { calories: parseFloat(e.target.value) || 0 })} className="w-20 bg-transparent font-mono font-bold text-lg outline-none text-center p-0" placeholder="0" />
                       <span className="text-[8px] opacity-60 mb-1">/{userProfile.targetCaloriesTrain}</span>
                     </div>
                   </div>
@@ -497,7 +507,7 @@
                   <div className={`p-3 rounded-xl text-center border transition-colors ${getProgressColor(log.fiber, userProfile.targetFiber)}`}>
                     <div className="text-[10px] font-bold uppercase mb-1 flex justify-center gap-1 opacity-70"><Leaf className="w-3 h-3"/>纤维</div>
                     <div className="flex justify-center items-end gap-0.5">
-                      <input type="number" value={log.fiber || ''} onChange={e => saveLog(formatDate(selectedDate), { fiber: parseFloat(e.target.value) || 0 })} className="w-10 bg-transparent font-mono font-bold text-lg outline-none text-center p-0" placeholder="0" />
+                      <input type="number" value={log.fiber || ''} onChange={e => saveLog(formatDate(selectedDate), { fiber: parseFloat(e.target.value) || 0 })} className="w-20 bg-transparent font-mono font-bold text-lg outline-none text-center p-0" placeholder="0" />
                       <span className="text-[8px] opacity-60 mb-1">/{userProfile.targetFiber}</span>
                     </div>
                   </div>
@@ -505,7 +515,7 @@
                   <div className="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">体重</div>
                     <div className="flex justify-center items-end gap-0.5">
-                      <input type="number" step="0.1" value={log.weight || ''} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0 })} className="w-14 bg-transparent font-mono font-bold text-lg outline-none text-slate-800 text-center p-0" placeholder="0.0" />
+                      <input type="number" step="0.1" value={log.weight || ''} onChange={e => saveLog(formatDate(selectedDate), { weight: parseFloat(e.target.value) || 0 })} className="w-20 bg-transparent font-mono font-bold text-lg outline-none text-slate-800 text-center p-0" placeholder="0.0" />
                       <span className="text-[8px] text-slate-400 mb-1">kg</span>
                     </div>
                   </div>
@@ -644,7 +654,7 @@
                             <main className="flex-1 overflow-y-auto scrollbar-hide pt-16">
                                 {setupMode ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} handleReset={handleReset} /> : 
                                 showSettings ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} handleReset={handleReset} /> :
-                                activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={logs[formatDate(selectedDate)]||{}} saveLog={saveLog} userProfile={userProfile} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} handleDayEndAnalysis={handleDayEndAnalysis} loading={aiLoading} /> : <HistoryTab userProfile={userProfile} logs={logs} />}
+                                activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={logs[formatDate(selectedDate)]||{}} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} handleDayEndAnalysis={handleDayEndAnalysis} loading={aiLoading} /> : <HistoryTab userProfile={userProfile} logs={logs} />}
                             </main>
                             <nav className="bg-white border-t border-slate-200 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
                                 <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">趋势</span></button>
