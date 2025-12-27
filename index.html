@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FRED.FITNESS (V9.7 视觉优化版)</title>
+    <title>FRED.FITNESS (V10.0 结构化饮食版)</title>
     
     <!-- 1. 控制台净化 -->
     <script>
@@ -83,7 +83,7 @@
           Activity, Utensils, Scale, Calendar, Trophy, TrendingDown, 
           Dumbbell, Droplets, BrainCircuit, ChevronRight, AlertTriangle, 
           Settings, Send, Loader2, Save, ChevronLeft, History, 
-          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, Target, Zap, Info, Ruler, WifiOff, Leaf
+          CheckCircle2, XCircle, ArrowLeftRight, Sparkles, Flame, Apple, LogOut, Cloud, ChefHat, RefreshCw, Coffee, Target, Zap, Info, Ruler, Leaf, Play
         } from 'lucide-react';
         
         import { initializeApp } from "firebase/app";
@@ -169,9 +169,11 @@
             };
             return (
                 <div className="h-full flex flex-col items-center justify-center p-6 bg-slate-900 text-white animate-fade-in">
-                    <Activity className="w-16 h-16 text-indigo-500 mb-6" />
+                    <div className="w-24 h-24 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-indigo-500/30">
+                        <Activity className="w-12 h-12 text-white" />
+                    </div>
                     <h1 className="text-3xl font-black mb-2 tracking-widest">FRED.FITNESS</h1>
-                    <p className="text-slate-400 mb-10 text-center text-sm font-medium tracking-wide">V9.7 视觉优化版</p>
+                    <p className="text-slate-400 mb-10 text-center text-sm font-medium tracking-wide">V10.0 智能补救版</p>
                     <button onClick={handleLogin} className="w-full max-w-xs bg-white text-slate-900 font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all shadow-lg">使用 Google 账号登录</button>
                 </div>
             );
@@ -381,10 +383,20 @@
 
         const LoggerTab = ({ 
           selectedDate, setSelectedDate, log, saveLog, userProfile, dayPlan, logs,
-          foodInput, setFoodInput, handleFoodAnalysis, loading, handleDayEndAnalysis
+          mealInputs, setMealInputs, handleFoodAnalysis, loading, handleDayEndAnalysis
         }) => {
           const isToday = formatDate(selectedDate) === formatDate(new Date());
-          useEffect(() => { setFoodInput(""); }, [selectedDate]);
+          
+          // 2. 状态管理：四餐输入框
+          // 当日期改变时，重置输入框或加载已有数据 (注意：log.meals 可能不存在)
+          useEffect(() => {
+              const meals = log.meals || { breakfast: "", lunch: "", dinner: "", snack: "" };
+              setMealInputs(meals);
+          }, [selectedDate, log.meals]);
+
+          const handleMealChange = (type, value) => {
+              setMealInputs(prev => ({...prev, [type]: value}));
+          };
 
           // --- 修复：空值保护 ---
           const getMealPlan = () => {
@@ -446,7 +458,15 @@
               <div className={`bg-white p-6 rounded-2xl shadow-sm border-l-4 transition-all duration-300 ${log.workoutCompleted ? 'border-green-500' : 'border-indigo-500'}`}>
                 <div className="flex justify-between items-center mb-5">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2"><Dumbbell className="w-5 h-5 text-indigo-500" /> {isGenerated ? "AI 计划" : "今日训练"}</h3>
-                  <button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted })} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${log.workoutCompleted ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{log.workoutCompleted ? '已完成' : '打卡'}</button>
+                   {/* 补救按钮：生成今日计划 */}
+                  {!isGenerated && isToday && (
+                       <button onClick={() => handleDayEndAnalysis(null, true)} disabled={loading} className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full border border-indigo-100 flex items-center gap-1 hover:bg-indigo-100 transition-colors font-semibold">
+                          {loading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} 生成今日计划
+                      </button>
+                  )}
+                  {isGenerated && <button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted })} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${log.workoutCompleted ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{log.workoutCompleted ? '已完成' : '打卡'}</button>}
+                  {/* Default打卡按钮在未生成计划时也显示 */}
+                  {!isGenerated && <button onClick={() => saveLog(formatDate(selectedDate), { workoutCompleted: !log.workoutCompleted })} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${log.workoutCompleted ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{log.workoutCompleted ? '已完成' : '打卡'}</button>}
                 </div>
                 <div className="space-y-4">
                   {activePlan.exercises.map((ex, i) => {
@@ -479,10 +499,24 @@
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-2 mb-5 font-bold text-slate-800"><Utensils className="w-5 h-5 text-indigo-500" /> 饮食记录</div>
-                <div className="bg-slate-50 p-1 rounded-xl mb-6 border border-slate-200 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                  <textarea value={foodInput} onChange={e => setFoodInput(e.target.value)} placeholder="记录全天饮食：早饭...午饭..." className="w-full bg-transparent p-4 text-sm rounded-xl outline-none h-24 resize-none mb-10 placeholder-slate-400 text-slate-700" />
-                  <button onClick={handleFoodAnalysis} disabled={loading} className="absolute bottom-2 right-2 bg-slate-800 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95">{loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} 识别</button>
+                <div className="flex items-center gap-2 mb-5 font-bold text-slate-800"><Utensils className="w-5 h-5 text-indigo-500" /> 饮食记录 (4餐分栏)</div>
+                <div className="space-y-3 mb-6">
+                    <div>
+                        <label className="text-[10px] text-slate-400 uppercase font-bold pl-1 mb-1 block">早餐</label>
+                        <input value={mealInputs.breakfast} onChange={e => handleMealChange('breakfast', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none" placeholder="记录早餐..." />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-400 uppercase font-bold pl-1 mb-1 block">午餐</label>
+                        <input value={mealInputs.lunch} onChange={e => handleMealChange('lunch', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none" placeholder="记录午餐..." />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-400 uppercase font-bold pl-1 mb-1 block">晚餐</label>
+                        <input value={mealInputs.dinner} onChange={e => handleMealChange('dinner', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none" placeholder="记录晚餐..." />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-400 uppercase font-bold pl-1 mb-1 block">加餐</label>
+                        <input value={mealInputs.snack} onChange={e => handleMealChange('snack', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none" placeholder="记录加餐..." />
+                    </div>
                 </div>
                 
                 {/* 修复：4格矩阵 + 智能变色 + 加宽输入框 (w-20) */}
@@ -523,15 +557,15 @@
               </div>
 
               <div className="grid grid-cols-3 gap-3 pt-2">
-                  <button onClick={()=>saveLog(formatDate(selectedDate), {})} className="col-span-1 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors shadow-sm"><Save className="w-4 h-4"/> 暂存进度</button>
-                  {isToday && <button onClick={()=>handleDayEndAnalysis(foodInput)} disabled={loading} className="col-span-2 py-3.5 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95">{loading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Target className="w-4 h-4"/>} {loading ? "AI 思考中..." : "结束打卡 & 全量分析"}</button>}
+                  <button onClick={()=>saveLog(formatDate(selectedDate), { meals: mealInputs })} className="col-span-1 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors shadow-sm"><Save className="w-4 h-4"/> 暂存进度</button>
+                  {isToday && <button onClick={()=>handleDayEndAnalysis(mealInputs)} disabled={loading} className="col-span-2 py-3.5 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95">{loading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Target className="w-4 h-4"/>} {loading ? "AI 思考中..." : "结束打卡 & 全量分析"}</button>}
               </div>
               {log.aiAnalysis && <div className="mt-4 bg-slate-200 p-4 rounded-xl text-xs text-slate-600 italic leading-relaxed border-l-4 border-slate-400">💡 教练点评：{log.aiAnalysis}</div>}
             </div>
           );
         };
 
-        function FredFitnessV8() {
+        function FredFitnessV10() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [userProfile, setUserProfile] = useState(DEFAULT_PROFILE);
@@ -541,7 +575,7 @@
             const [setupMode, setSetupMode] = useState(false);
             const [showSettings, setShowSettings] = useState(false);
             const [aiLoading, setAiLoading] = useState(false);
-            const [foodInput, setFoodInput] = useState("");
+            const [mealInputs, setMealInputs] = useState({ breakfast: "", lunch: "", dinner: "", snack: "" });
             const [apiKey, setApiKey] = useState(localStorage.getItem('fred_deepseek_key') || DEFAULT_DEEPSEEK_KEY);
             const [syncError, setSyncError] = useState(null);
 
@@ -591,48 +625,88 @@
                 } catch(e) { alert("AI Error"); return null; } finally { setAiLoading(false); }
             };
 
-            const handleDayEndAnalysis = async (foodText) => {
+            const handleDayEndAnalysis = async (mealsData, isMorningMode = false) => {
                 const today = formatDate(selectedDate);
                 const tmr = new Date(selectedDate); tmr.setDate(tmr.getDate()+1);
+                const tmrStr = formatDate(tmr);
+
+                // 构造 4 餐文本
+                let foodText = "";
+                if (mealsData) {
+                    foodText = `早餐: ${mealsData.breakfast || "无"}, 午餐: ${mealsData.lunch || "无"}, 晚餐: ${mealsData.dinner || "无"}, 加餐: ${mealsData.snack || "无"}`;
+                }
                 
                 // 修复：强制中文指令
-                const prompt = `Today: ${today}. Food: ${foodText}. Goal: ${userProfile.goalType}.
-                Stats: Weight ${userProfile.currentWeight}kg.
-                Task: 
-                1. Analyze nutrition of food (calories, protein, fiber).
-                2. Give feedback for today (IN CHINESE).
-                3. Create workout & diet plan for tomorrow (IN CHINESE).
-                
-                Return JSON ONLY: 
-                {"nutrition":{cal:int,pro:int,fiber:int}, "feedback":"中文点评", "tomorrow":{"workout":{title:"中文标题",exercises:[{name:"中文动作",sets:"组数",note:"要点"}]}, "diet":{breakfast:{main,alt},lunch:{main,alt},dinner:{main,alt},snack:{main,alt}}}}`;
+                let prompt = "";
+                let systemPrompt = "You are an expert fitness coach. You MUST respond in Simplified Chinese. Return JSON only.";
 
-                const res = await callDeepSeek("You are an expert fitness coach. You MUST respond in Simplified Chinese. Return JSON only.", prompt);
+                if (isMorningMode) {
+                     // 补救模式：生成今日计划
+                     // 获取过去 7 天记录
+                     const historyContext = [];
+                     for(let i=7; i>=1; i--) {
+                        const d = new Date(selectedDate); d.setDate(d.getDate()-i);
+                        const ds = formatDate(d);
+                        if(logs[ds]) historyContext.push(`${ds}: 摄入${logs[ds].calories}kcal, 蛋白${logs[ds].protein}g, 训练${logs[ds].workoutCompleted?'完成':'未做'}`);
+                    }
+                     const contextStr = historyContext.join("\n");
+                     prompt = `Today: ${today}. Goal: ${userProfile.goalType}. Stats: Weight ${userProfile.currentWeight}kg.
+                     Past 7 Days: ${contextStr}
+                     Task: Create a custom workout plan & diet plan for TODAY based on history.
+                     Return JSON ONLY:
+                     {"planTitle":"今日主题", "exercises":[{"name":"动作名","sets":"组数","note":"要点"}], "coachAdvice":"寄语"}`;
+                } else {
+                    // 正常结案模式
+                    prompt = `Today: ${today}. Food Eaten: ${foodText}. Goal: ${userProfile.goalType}.
+                    Stats: Weight ${userProfile.currentWeight}kg.
+                    Task: 
+                    1. Analyze nutrition of food (total calories, protein, fiber).
+                    2. Give feedback for today (IN CHINESE).
+                    3. Create workout & diet plan for TOMORROW (IN CHINESE).
+                    
+                    Return JSON ONLY: 
+                    {"nutrition":{cal:int,pro:int,fiber:int}, "feedback":"中文点评", "tomorrow":{"workout":{title:"中文标题",exercises:[{name:"中文动作",sets:"组数",note:"要点"}]}, "diet":{breakfast:{main,alt},lunch:{main,alt},dinner:{main,alt},snack:{main,alt}}}}`;
+                }
+
+                const res = await callDeepSeek(systemPrompt, prompt);
                 if (res) {
                     try {
                         const json = JSON.parse(res.replace(/```json|```/g, '').trim());
-                        const curLog = logs[today] || {};
-                        saveLog(today, {
-                            calories: (curLog.calories||0) + json.nutrition.cal,
-                            protein: (curLog.protein||0) + json.nutrition.pro,
-                            fiber: (curLog.fiber||0) + json.nutrition.fiber,
-                            aiAnalysis: json.feedback,
-                            // 修复：不自动勾选 workoutCompleted，由用户手动点
-                        });
-                        saveLog(formatDate(tmr), { generatedPlan: json.tomorrow.workout, generatedDiet: json.tomorrow.diet });
-                        alert("✅ 今日结算完成！明日计划已生成。");
-                        setFoodInput("");
+                        
+                        if (isMorningMode) {
+                            // 更新今日
+                            saveLog(today, { 
+                                generatedPlan: { title: json.planTitle, exercises: json.exercises },
+                                coachAdvice: json.coachAdvice
+                            });
+                             alert("✅ 今日计划已生成！");
+                        } else {
+                            // 结案：更新今日数据 + 生成明日计划
+                            const curLog = logs[today] || {};
+                            saveLog(today, {
+                                calories: (curLog.calories||0) + json.nutrition.cal,
+                                protein: (curLog.protein||0) + json.nutrition.pro,
+                                fiber: (curLog.fiber||0) + json.nutrition.fiber,
+                                aiAnalysis: json.feedback,
+                                // 不自动勾选 workoutCompleted
+                            });
+                            saveLog(tmrStr, { generatedPlan: json.tomorrow.workout, generatedDiet: json.tomorrow.diet });
+                            alert("✅ 今日结算完成！明日计划已生成。");
+                        }
                     } catch(e) { console.error(e); alert("AI解析失败"); }
                 }
             };
 
+            // 单独计算营养 (按钮触发) - 合并 4 餐文本
             const handleFoodAnalysis = async () => {
-                const res = await callDeepSeek("Nutritionist. JSON Only.", `Analyze: ${foodInput}. Return JSON: {"cal":int,"pro":int,"fiber":int}`);
+                const foodText = `早餐: ${mealInputs.breakfast || "无"}, 午餐: ${mealInputs.lunch || "无"}, 晚餐: ${mealInputs.dinner || "无"}, 加餐: ${mealInputs.snack || "无"}`;
+                const res = await callDeepSeek("Nutritionist. JSON Only.", `Analyze total nutrition for: ${foodText}. Return JSON: {"cal":int,"pro":int,"fiber":int}`);
                 if (res) {
                     try {
                         const d = JSON.parse(res.replace(/```json|```/g, '').trim());
                         const cur = logs[formatDate(selectedDate)] || {};
-                        saveLog(formatDate(selectedDate), { calories: (cur.calories||0)+d.cal, protein: (cur.protein||0)+d.pro, fiber: (cur.fiber||0)+d.fiber });
-                        setFoodInput("");
+                        // 覆盖还是累加？这里选择覆盖，因为是全量分析4餐
+                        saveLog(formatDate(selectedDate), { calories: d.cal, protein: d.pro, fiber: d.fiber });
                     } catch(e) { alert("解析失败"); }
                 }
             };
@@ -640,13 +714,12 @@
             if (loading) return <div className="h-full flex items-center justify-center text-slate-500 animate-pulse">连接云端...</div>;
             
             return (
-                <div className="h-full flex flex-col bg-[#f1f5f9] font-sans text-slate-900 overflow-hidden relative">
+                <div className="h-full flex flex-col bg-[#f8f9fa] font-sans text-slate-900 overflow-hidden relative">
                     {!user ? <LoginScreen /> : (
                         <>
                             <header className="bg-white/80 p-4 shadow-sm z-30 flex justify-between items-center backdrop-blur-md absolute top-0 w-full border-b border-slate-200">
                                 <div className="flex items-center gap-2">{user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border border-indigo-100"/>}<div><h1 className="font-bold text-lg text-slate-800 tracking-widest">FRED.FITNESS</h1></div></div>
                                 <div className="flex gap-4">
-                                    {syncError && <WifiOff className="w-5 h-5 text-red-500 animate-pulse" />}
                                     <button onClick={() => signOut(auth)}><LogOut className="w-5 h-5 text-slate-400 hover:text-red-500 transition-colors"/></button>
                                     <button onClick={() => setShowSettings(!showSettings)}><Settings className="w-5 h-5 text-slate-600 hover:text-indigo-600 transition-colors"/></button>
                                 </div>
@@ -654,7 +727,7 @@
                             <main className="flex-1 overflow-y-auto scrollbar-hide pt-16">
                                 {setupMode ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} handleReset={handleReset} /> : 
                                 showSettings ? <SettingsTab apiKey={apiKey} setApiKey={setApiKey} userProfile={userProfile} saveProfile={saveProfile} handleReset={handleReset} /> :
-                                activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={logs[formatDate(selectedDate)]||{}} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} foodInput={foodInput} setFoodInput={setFoodInput} handleFoodAnalysis={handleFoodAnalysis} handleDayEndAnalysis={handleDayEndAnalysis} loading={aiLoading} /> : <HistoryTab userProfile={userProfile} logs={logs} />}
+                                activeTab === 'log' ? <LoggerTab selectedDate={selectedDate} setSelectedDate={setSelectedDate} log={logs[formatDate(selectedDate)]||{}} saveLog={saveLog} userProfile={userProfile} dayPlan={BASE_PLAN[selectedDate.getDay()]} logs={logs} mealInputs={mealInputs} setMealInputs={setMealInputs} handleFoodAnalysis={handleFoodAnalysis} handleDayEndAnalysis={handleDayEndAnalysis} loading={aiLoading} /> : <HistoryTab userProfile={userProfile} logs={logs} />}
                             </main>
                             <nav className="bg-white border-t border-slate-200 flex justify-around py-3 pb-6 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] absolute bottom-0 w-full rounded-t-3xl">
                                 <button onClick={() => { setActiveTab('history'); setShowSettings(false); }} className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}><History className="w-6 h-6" /><span className="text-[10px] font-bold mt-1">趋势</span></button>
@@ -667,7 +740,7 @@
         }
 
         const root = createRoot(document.getElementById('root'));
-        root.render(<FredFitnessV8 />);
+        root.render(<FredFitnessV10 />);
 
     </script>
 </body>
